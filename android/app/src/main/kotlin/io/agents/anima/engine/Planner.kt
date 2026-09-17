@@ -35,6 +35,7 @@ class HeuristicPlanner : Planner {
 
         var bestNode: PrunedNode? = null
         var bestScore = 0
+        var bestArea = Long.MAX_VALUE
         val toggleGoal = wantsToggle(goal)
 
         for (n in nodes) {
@@ -57,9 +58,14 @@ class HeuristicPlanner : Planner {
             // owns a switch. A settings screen titled "Wi-Fi" carries the word in
             // its action bar too, and tapping that does nothing.
             if (score > 0 && toggleGoal && enclosesToggle(actionable(n, nodes), nodes)) score += 3
-            if (score > bestScore) {
+            // On a tie, the tighter element wins: with label inheritance a
+            // whole-screen container can carry the same label as the row inside
+            // it, and the row is what a human would tap.
+            val area = (n.bounds[2] - n.bounds[0]).toLong() * (n.bounds[3] - n.bounds[1]).toLong()
+            if (score > bestScore || (score == bestScore && score > 0 && area < bestArea)) {
                 bestScore = score
                 bestNode = n
+                bestArea = area
             }
         }
 

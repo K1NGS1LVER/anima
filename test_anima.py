@@ -8,6 +8,7 @@ import unittest
 from anima import (
     ADBDevice,
     AnimaRuntime,
+    Matcher,
     BiometricGuard,
     EssentialStateVerifier,
     HeuristicPlanner,
@@ -237,6 +238,42 @@ class TestAnima(unittest.TestCase):
 
         # The whole-screen FrameLayout also contains the label; the tighter row wins.
         self.assertEqual(target.resource_id, "android:id/row")
+
+    def test_locator_does_not_match_a_lookalike_row_on_another_screen(self):
+        """A skill must not fire on a same-shaped row in a different app.
+
+        Regression from a physical device: the compiled "toggle wifi" skill
+        replayed on the Bluetooth settings screen and turned Bluetooth off,
+        reporting success. MIUI's toggle row has no resource-id, no text and no
+        content-desc of its own, so the locator held only a class and a
+        position -- and active-weight renormalization rescaled that to a
+        perfect 1.0 against any LinearLayout in the same place.
+        """
+        wifi_screen = """<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
+<hierarchy rotation="0">
+  <node index="0" class="android.widget.FrameLayout" bounds="[0,0][1080,2400]">
+    <node index="0" class="android.widget.LinearLayout" clickable="true" bounds="[0,421][1080,575]">
+      <node index="0" class="android.widget.TextView" resource-id="android:id/title" text="Wi-Fi" bounds="[76,466][183,529]" />
+      <node index="1" class="android.widget.CheckBox" resource-id="android:id/checkbox" checkable="true" checked="true" bounds="[870,454][1004,541]" />
+    </node>
+  </node>
+</hierarchy>
+"""
+        # Same OEM, same layout, same coordinates -- a different setting.
+        bluetooth_screen = wifi_screen.replace("Wi-Fi", "Bluetooth")
+
+        pruner = UIFormer()
+        wifi_row = [n for n in pruner.prune(wifi_screen) if n.clickable][0]
+        bt_row = [n for n in pruner.prune(bluetooth_screen) if n.clickable][0]
+
+        # The row inherits the label sitting inside it, so it is identifiable.
+        self.assertEqual(wifi_row.text, "Wi-Fi")
+        self.assertEqual(bt_row.text, "Bluetooth")
+
+        locator = Locator.from_node(wifi_row)
+        self.assertEqual(Matcher.score(locator, wifi_row), 1.0)
+        self.assertEqual(Matcher.score(locator, bt_row), 0.0)
+        self.assertIsNone(Matcher.find_best(locator, [bt_row]))
 
     def test_export_import_skills(self):
         """Verifies skill library JSON export and import."""

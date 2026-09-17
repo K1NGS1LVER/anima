@@ -152,10 +152,25 @@ class AnimaAccessibilityService : AccessibilityService() {
                 !node.text.isNullOrBlank() || !node.contentDescription.isNullOrBlank()
 
         if (isMeaningful && bounds.width() > 0 && bounds.height() > 0) {
+            // Label inheritance: a tappable row often carries no label of its
+            // own -- the text lives on an inert child. Without a label such a
+            // row is identified only by class and position, which do not
+            // distinguish a Wi-Fi row from a Bluetooth row at the same spot on
+            // another screen. Give the container the label it visually has.
+            val ownText = node.text?.toString()
+            val inheritedText = if (
+                ownText.isNullOrBlank() &&
+                node.contentDescription.isNullOrBlank() &&
+                node.isClickable
+            ) {
+                descendantLabel(node)
+            } else {
+                ownText
+            }
             list.add(
                 AccessibilityNode(
                     resourceId = node.viewIdResourceName,
-                    text = node.text?.toString(),
+                    text = inheritedText,
                     contentDescription = node.contentDescription?.toString(),
                     className = node.className?.toString() ?: "android.view.View",
                     isClickable = node.isClickable,
@@ -169,6 +184,30 @@ class AnimaAccessibilityService : AccessibilityService() {
         for (i in 0 until node.childCount) {
             val child = node.getChild(i) ?: continue
             traverseNode(child, list)
+        }
+    }
+
+    /**
+     * The single label a container visually presents, if it has one.
+     *
+     * Bails out when the subtree holds several labels: a whole-screen container
+     * would otherwise inherit whatever text happened to come first, which is
+     * worse than having no label at all.
+     */
+    private fun descendantLabel(node: AccessibilityNodeInfo, maxLabels: Int = 3): String? {
+        val labels = mutableListOf<String>()
+        collectLabels(node, labels, maxLabels)
+        return if (labels.size in 1..maxLabels) labels.first() else null
+    }
+
+    private fun collectLabels(node: AccessibilityNodeInfo, out: MutableList<String>, limit: Int) {
+        for (i in 0 until node.childCount) {
+            if (out.size > limit) return
+            val child = node.getChild(i) ?: continue
+            val label = child.text?.toString()?.trim().takeUnless { it.isNullOrEmpty() }
+                ?: child.contentDescription?.toString()?.trim().takeUnless { it.isNullOrEmpty() }
+            if (label != null) out.add(label)
+            collectLabels(child, out, limit)
         }
     }
 

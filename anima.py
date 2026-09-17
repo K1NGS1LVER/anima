@@ -195,7 +195,7 @@ class UIFormer:
             if rb[2] > 0 and rb[3] > 0:
                 sw, sh = rb[2], rb[3]
 
-        nodes: List[PrunedNode] = []
+        kept: List[Tuple[PrunedNode, ET.Element]] = []
         counter = 1
 
         def walk(node: ET.Element):
@@ -221,7 +221,7 @@ class UIFormer:
                         round(bounds[3] / sh, 4)
                     ]
                     rel_c = [round(center[0] / sw, 4), round(center[1] / sh, 4)]
-                    nodes.append(PrunedNode(
+                    kept.append((PrunedNode(
                         id=counter,
                         class_name=cls.split(".")[-1],
                         resource_id=res_id,
@@ -233,14 +233,45 @@ class UIFormer:
                         center=center,
                         rel_bounds=rel_b,
                         rel_center=rel_c
-                    ))
+                    ), node))
                     counter += 1
 
             for child in node:
                 walk(child)
 
         walk(root)
-        return nodes
+
+        # Label inheritance: a tappable row often carries no label of its own --
+        # the text lives on an inert child. Without a label such a row is
+        # identified only by class and position, which are not distinguishing:
+        # a "Wi-Fi" row and a "Bluetooth" row on different screens look
+        # identical to the matcher. Give the container the label it visually has.
+        for pruned, element in kept:
+            if pruned.clickable and not pruned.text and not pruned.content_desc:
+                label = self._descendant_label(element)
+                if label:
+                    pruned.text = label
+
+        return [pruned for pruned, _ in kept]
+
+    @staticmethod
+    def _descendant_label(element: ET.Element, max_labels: int = 3) -> Optional[str]:
+        """The single label a container visually presents, if it has one.
+
+        Bails out when the subtree holds several labels: a whole-screen
+        container would otherwise inherit whatever text happened to be first,
+        which is worse than having no label at all.
+        """
+        labels: List[str] = []
+        for child in element.iter():
+            if child is element:
+                continue
+            label = (child.attrib.get("text") or "").strip() or (child.attrib.get("content-desc") or "").strip()
+            if label:
+                labels.append(label)
+                if len(labels) > max_labels:
+                    return None
+        return labels[0] if labels else None
 
 # ---------------------------------------------------------------------------
 # 3. Skill Schema & Weighted Multi-Attribute Matcher (SkillDroid)
@@ -286,6 +317,12 @@ class Matcher:
     """Computes weighted multi-attribute score normalized by active locator attributes."""
     WEIGHTS = {"res": 0.35, "desc": 0.25, "text": 0.20, "cls": 0.10, "bounds": 0.10}
 
+    # A label the locator knows about, contradicted by the label the candidate
+    # actually carries, means "different element" -- not "weak match". Without
+    # this veto, a "Wi-Fi" row locator scored 1.0 against the identically shaped
+    # "Bluetooth" row on another screen and the agent tapped it.
+    CONTRADICTION_RATIO = 0.40
+
     @classmethod
     def score(cls, loc: Locator, node: PrunedNode) -> float:
         score = 0.0
@@ -299,12 +336,18 @@ class Matcher:
         if loc.content_desc:
             active_weight += cls.WEIGHTS["desc"]
             if node.content_desc:
-                score += SequenceMatcher(None, loc.content_desc.lower(), node.content_desc.lower()).ratio() * cls.WEIGHTS["desc"]
+                ratio = SequenceMatcher(None, loc.content_desc.lower(), node.content_desc.lower()).ratio()
+                if ratio < cls.CONTRADICTION_RATIO:
+                    return 0.0  # different element, not a weak match
+                score += ratio * cls.WEIGHTS["desc"]
 
         if loc.text:
             active_weight += cls.WEIGHTS["text"]
             if node.text:
-                score += SequenceMatcher(None, loc.text.lower(), node.text.lower()).ratio() * cls.WEIGHTS["text"]
+                ratio = SequenceMatcher(None, loc.text.lower(), node.text.lower()).ratio()
+                if ratio < cls.CONTRADICTION_RATIO:
+                    return 0.0
+                score += ratio * cls.WEIGHTS["text"]
 
         if loc.class_name:
             active_weight += cls.WEIGHTS["cls"]
@@ -622,6 +665,7 @@ class HeuristicPlanner(BasePlanner):
         tokens = [t.lower() for t in re.findall(r"\w+", goal) if len(t) > 2]
         best_node = None
         best_score = 0
+        best_area = None
         wants_toggle = self._wants_toggle(goal)
 
         for n in nodes:
@@ -647,9 +691,14 @@ class HeuristicPlanner(BasePlanner):
             # its action bar too, and tapping that does nothing.
             if score > 0 and wants_toggle and self._encloses_toggle(self._actionable(n, nodes), nodes):
                 score += 3
-            if score > best_score:
+            # On a tie, the tighter element wins: with label inheritance a
+            # whole-screen container can carry the same label as the row inside
+            # it, and the row is what a human would tap.
+            area = (n.bounds[2] - n.bounds[0]) * (n.bounds[3] - n.bounds[1])
+            if score > best_score or (score == best_score and score > 0 and best_area is not None and area < best_area):
                 best_score = score
                 best_node = n
+                best_area = area
 
         if best_node:
             return "tap", self._actionable(best_node, nodes), None

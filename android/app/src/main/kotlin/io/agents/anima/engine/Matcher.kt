@@ -18,6 +18,14 @@ object Matcher {
 
     const val DEFAULT_THRESHOLD = 0.50
 
+    /**
+     * A label the locator knows about, contradicted by the label the candidate
+     * actually carries, means "different element" -- not "weak match". Without
+     * this veto a "Wi-Fi" row locator scored 1.0 against the identically shaped
+     * "Bluetooth" row on another screen, and the agent tapped it.
+     */
+    const val CONTRADICTION_RATIO = 0.40
+
     /** Distance (in normalized [0,1] screen units) below which a spatial match is considered exact. */
     private const val NEAR_DIST = 0.05
 
@@ -39,7 +47,9 @@ object Matcher {
             activeWeight += W_DESC
             val nodeDesc = node.contentDesc
             if (!nodeDesc.isNullOrEmpty()) {
-                score += TextRatio.ratio(locDesc.lowercase(), nodeDesc.lowercase()) * W_DESC
+                val ratio = TextRatio.ratio(locDesc.lowercase(), nodeDesc.lowercase())
+                if (ratio < CONTRADICTION_RATIO) return 0.0
+                score += ratio * W_DESC
             }
         }
 
@@ -48,7 +58,9 @@ object Matcher {
             activeWeight += W_TEXT
             val nodeText = node.text
             if (!nodeText.isNullOrEmpty()) {
-                score += TextRatio.ratio(locText.lowercase(), nodeText.lowercase()) * W_TEXT
+                val ratio = TextRatio.ratio(locText.lowercase(), nodeText.lowercase())
+                if (ratio < CONTRADICTION_RATIO) return 0.0
+                score += ratio * W_TEXT
             }
         }
 

@@ -53,10 +53,21 @@ object IntentRouter {
         return routes.firstOrNull { route -> route.keywords.any { flat.contains(it) } }?.destination
     }
 
-    /** @return true when the screen was actually launched. */
+    /**
+     * @return true when the screen was actually launched.
+     *
+     * CLEAR_TOP matters more than it looks: Settings is a single task, so
+     * running "turn off bluetooth" and then "toggle wifi" back to back would
+     * otherwise just re-show the Bluetooth page that is already on top, and the
+     * agent would be asked to find a Wi-Fi toggle on the Bluetooth screen.
+     */
     fun launch(context: Context, destination: Destination): Boolean = try {
         context.startActivity(
-            Intent(destination.action).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            Intent(destination.action).addFlags(
+                Intent.FLAG_ACTIVITY_NEW_TASK or
+                    Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP
+            )
         )
         true
     } catch (e: Exception) {

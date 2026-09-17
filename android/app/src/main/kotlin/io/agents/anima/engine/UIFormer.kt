@@ -134,6 +134,7 @@ object UIFormer {
         if (sh <= 0) sh = DEFAULT_HEIGHT
 
         val nodes = ArrayList<PrunedNode>()
+        val elementOf = HashMap<Int, Element>()
         var counter = 1
 
         fun walk(el: Element) {
@@ -167,6 +168,7 @@ object UIFormer {
                             relCenter = relCenter,
                         )
                     )
+                    elementOf[nodes.size - 1] = el
                     counter += 1
                 }
             }
@@ -179,6 +181,46 @@ object UIFormer {
         }
 
         walk(root)
+
+        // Label inheritance, mirroring anima.py: a tappable row often carries no
+        // label of its own -- the text lives on an inert child. Without a label
+        // such a row is identified only by class and position, which do not
+        // distinguish a Wi-Fi row from a Bluetooth row at the same spot on
+        // another screen.
+        for (i in nodes.indices) {
+            val n = nodes[i]
+            if (!n.clickable || !n.text.isNullOrEmpty() || !n.contentDesc.isNullOrEmpty()) continue
+            val el = elementOf[i] ?: continue
+            val label = descendantLabel(el) ?: continue
+            nodes[i] = n.copy(text = label)
+        }
+
         return nodes
+    }
+
+    /**
+     * The single label a container visually presents, if it has one.
+     *
+     * Bails out when the subtree holds several labels: a whole-screen container
+     * would otherwise inherit whatever text happened to come first, which is
+     * worse than having no label at all.
+     */
+    fun descendantLabel(element: Element, maxLabels: Int = 3): String? {
+        val labels = ArrayList<String>()
+
+        fun collect(el: Element) {
+            val children = el.childNodes
+            for (i in 0 until children.length) {
+                if (labels.size > maxLabels) return
+                val child = children.item(i) as? Element ?: continue
+                val label = child.getAttribute("text")?.trim()?.takeIf { it.isNotEmpty() }
+                    ?: child.getAttribute("content-desc")?.trim()?.takeIf { it.isNotEmpty() }
+                if (label != null) labels.add(label)
+                collect(child)
+            }
+        }
+
+        collect(element)
+        return if (labels.size in 1..maxLabels) labels[0] else null
     }
 }
