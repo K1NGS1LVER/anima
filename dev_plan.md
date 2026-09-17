@@ -183,35 +183,52 @@ Position Anima **not** as another generic conversational chat wrapper, but as an
 
 ---
 
-## 9. Modular Implementation Roadmap
+## 9. Modular Implementation Roadmap & Current Status
 
-```
-[ Phase 1: Core Foundation (COMPLETED) ]
-  • Safe ADB & Mock Device abstraction (shell=False)
-  • UIFormer DSL Pruning Engine (>60% token reduction)
-  • SkillDroid SQLite Storage & 5-Attribute Weighted Locators
-  • Speculative 0-LLM Replay Engine
+### Progress Audit Table
 
-[ Phase 2: Autonomous Prototype & Safety (COMPLETED) ]
-  • Cold-start VLM planning (Gemini 2.5 Flash REST API + Heuristic)
-  • Automated trajectory compilation into SQLite
-  • Self-healing locator drift recovery
-  • Visual Grounding Fallback on empty XML
-  • Popup Interceptor & Essential-State Verifier
-  • Packaging (pyproject.toml, Makefile, CI matrix, LICENSE)
+| Phase | Milestone Name | Status | Key Deliverables & Capabilities |
+| :--- | :--- | :--- | :--- |
+| **Phase 1** | **Core Foundation & Pruning** | ✅ **COMPLETED** | Parameterized `Device` & `MockDevice`, `UIFormer` pruning DSL (>60% token cut), `SkillDB` SQLite storage, `SpeculativeReplayEngine` (0 LLM calls). |
+| **Phase 2** | **Autonomous Prototype & Safety** | ✅ **COMPLETED** | Dual-mode cold planning (Gemini 2.5 Flash REST + Heuristic), auto-compilation, self-healing drift repair, visual fallback on empty XML, `PopupInterceptor`, `EssentialStateVerifier`, CI matrix, `pyproject.toml`, MIT license. |
+| **Phase 3** | **Resolution Invariance & Dynamic Slots** | ✅ **COMPLETED** | Relative coordinate normalization `[0.0, 1.0]` (1080p -> 1440p cross-device replay), `ParameterExtractor` (`{time}`, `{email}`, `{number}`), IME keyboard auto-dismissal, active weight normalization. |
+| **Phase 4** | **Page Transition Graph (PTG) & Visual Dashboard** | 🟡 **IN PROGRESS (NEXT)** | Live interactive visualization mapping screen transitions, extracting design tokens, and streaming a real-time token savings scoreboard for hackathon demos. |
+| **Phase 5** | **Native Android APK Daemon & Service Harness** | ⏳ **PENDING** | Native Kotlin `AccessibilityService` listener, `SYSTEM_ALERT_WINDOW` floating HUD with emergency kill-switch, `ForegroundService`, and Tasker/MacroDroid Intent API (`io.agents.anima.RUN_TASK`). |
+| **Phase 6** | **On-Device LiteRT-LM Local Inference** | ⏳ **PENDING** | Quantized 4-bit Gemma 4 on-device local model execution via Android NNAPI, removing cloud dependency completely. |
 
-[ Phase 3: Relative Coordinate Normalization & Parameter Slots (CURRENT) ]
-  • Screen resolution agnostic relative coordinate mapping (0–1000 scale)
-  • Extraction of dynamic parameter slots (e.g., {alarm_time}, {contact_name})
-  • Regex + embedding hybrid intent router
+---
 
-[ Phase 4: Native Android APK Daemon ]
-  • Kotlin AccessibilityService listener & gesture dispatcher
-  • SYSTEM_ALERT_WINDOW persistent floating HUD with kill switch
-  • On-device LiteRT-LM (Gemma 4) integration
-  • Exported automation intent for Tasker / MacroDroid
+### Detailed Stage Breakdown
 
-[ Phase 5: Live Dashboard & Visualizer ]
-  • Streamlit interactive Page Transition Graph (PTG)
-  • Real-time token consumption and cost savings scoreboard
-```
+#### ✅ What Has Been Completed
+1. **Hermetic Test Suite (10/10 Passing in 0.021s):**
+   - `test_uiformer_pruner`: Structural container filtering and >60% payload reduction.
+   - `test_security_rejection`: Hardened parameterized command execution rejecting injection vectors (`shell=False`).
+   - `test_cold_to_warm_autonomous_loop`: Cold planning -> SQLite auto-compilation -> warm 0-LLM replay.
+   - `test_self_healing_drift`: Automatic locator re-grounding and skill repair when UI layouts shift.
+   - `test_visual_fallback`: Screenshot-based visual grounding activation when XML hierarchy is empty.
+   - `test_popup_interception`: System dialog and permission prompt auto-dismissal.
+   - `test_essential_state_progress`: Functional milestone completion verification.
+   - `test_export_import_skills`: Skill library JSON serialization and re-import.
+   - `test_cross_resolution_skill_replay`: Screen resolution invariant relative coordinate mapping.
+   - `test_parameter_slot_skill_replay`: Template parameterization and dynamic substitution.
+2. **Production Repository Ergonomics:**
+   - Standard packaging via `pyproject.toml` with console command `anima`.
+   - GitHub Actions CI matrix testing Python 3.10, 3.11, and 3.12 across all pushes and PRs.
+   - Developer task runner (`Makefile`) with `make test`, `make demo`, `make benchmark`.
+   - MIT License and `CONTRIBUTING.md`.
+3. **Core Engine Zero-Dependency Philosophy:**
+   - Single-file runtime (`anima.py`) operating entirely on Python standard library (`xml.etree.ElementTree`, `sqlite3`, `difflib`, `subprocess`, `urllib`).
+
+#### 🟡 What Is Currently Being Built (Phase 4: Next Stage)
+1. **Page Transition Graph (PTG) Engine & App Map:**
+   - Building a state transition tracker that hashes screen semantic states, logs UI edges (action transitions between screens), and extracts design tokens.
+   - Emitting interactive graph visualizer (HTML/Web/CLI) displaying the live navigation tree and real-time token/latency savings scoreboard.
+
+#### ⏳ What Is Pending for Subsequent Stages
+1. **Android APK Daemon (`android/`):**
+   - Kotlin `AccessibilityService` implementing `dispatchGesture()` and `AccessibilityNodeInfo` streaming.
+   - Floating chat-head overlay (`TYPE_APPLICATION_OVERLAY`) with real-time status and emergency manual override button.
+   - Exported Intent Receiver (`io.agents.anima.RUN_TASK`) for Tasker and MacroDroid automation.
+2. **On-Device Quantized Model Runtime:**
+   - 4-bit quantized Gemma 4 inference harness via Android LiteRT-LM.
