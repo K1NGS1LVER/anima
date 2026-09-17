@@ -48,11 +48,14 @@ class Device:
         raise NotImplementedError
     def key(self, keycode: int) -> None:
         raise NotImplementedError
+    def get_screen_size(self) -> Tuple[int, int]:
+        raise NotImplementedError
 
 class ADBDevice(Device):
     """Hardened ADB device controller using sanitized array arguments (shell=False)."""
     def __init__(self, serial: Optional[str] = None):
         self.cmd_prefix = ["adb"] + (["-s", serial] if serial else [])
+        self._cached_size: Optional[Tuple[int, int]] = None
 
     def _run(self, args: List[str]) -> str:
         for arg in args:
@@ -67,6 +70,17 @@ class ADBDevice(Device):
                 raise ValueError(f"Security error: dangerous character in argument: {arg}")
         res = subprocess.run(self.cmd_prefix + args, capture_output=True, check=True)
         return res.stdout
+
+    def get_screen_size(self) -> Tuple[int, int]:
+        if not self._cached_size:
+            try:
+                out = self._run(["shell", "wm", "size"])
+                m = re.search(r"(\d+)x(\d+)", out)
+                if m:
+                    self._cached_size = (int(m.group(1)), int(m.group(2)))
+            except Exception:
+                self._cached_size = (1080, 2400)
+        return self._cached_size or (1080, 2400)
 
     def dump_xml(self) -> str:
         return self._run(["exec-out", "uiautomator", "dump", "/dev/tty"])
@@ -86,10 +100,14 @@ class ADBDevice(Device):
 
 class MockDevice(Device):
     """Hermetic in-memory mock device for fast deterministic unit testing."""
-    def __init__(self, xml: str, screenshot: bytes = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR"):
+    def __init__(self, xml: str, screenshot: bytes = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR", screen_size: Tuple[int, int] = (1080, 2400)):
         self.xml = xml
         self.screenshot = screenshot
+        self.screen_size = screen_size
         self.history: List[Tuple[str, Any]] = []
+
+    def get_screen_size(self) -> Tuple[int, int]:
+        return self.screen_size
 
     def dump_xml(self) -> str:
         return self.xml
@@ -121,6 +139,8 @@ class PrunedNode:
     checked: bool
     bounds: List[int]
     center: List[int]
+    rel_bounds: List[float] = field(default_factory=lambda: [0.0, 0.0, 0.0, 0.0])
+    rel_center: List[float] = field(default_factory=lambda: [0.0, 0.0])
 
 class UIFormer:
     """Prunes Android accessibility trees by dropping non-interactive structural containers."""
@@ -159,13 +179,21 @@ class UIFormer:
             compact.append(item)
         return json.dumps(compact, separators=(",", ":"))
 
-    def prune(self, raw_xml: str) -> List[PrunedNode]:
+    def prune(self, raw_xml: str, screen_size: Optional[Tuple[int, int]] = None) -> List[PrunedNode]:
         if not raw_xml or not raw_xml.strip():
             return []
         try:
             root = ET.fromstring(raw_xml)
         except ET.ParseError:
             return []
+
+        # Determine screen resolution for relative coordinate normalization
+        sw, sh = screen_size or (1080, 2400)
+        root_bounds_str = root.attrib.get("bounds", "")
+        if root_bounds_str and not screen_size:
+            rb, _ = self.parse_bounds(root_bounds_str)
+            if rb[2] > 0 and rb[3] > 0:
+                sw, sh = rb[2], rb[3]
 
         nodes: List[PrunedNode] = []
         counter = 1
@@ -186,6 +214,13 @@ class UIFormer:
             if has_semantics and (not is_container or clickable):
                 bounds, center = self.parse_bounds(a.get("bounds", ""))
                 if bounds[2] > bounds[0] and bounds[3] > bounds[1]:
+                    rel_b = [
+                        round(bounds[0] / sw, 4),
+                        round(bounds[1] / sh, 4),
+                        round(bounds[2] / sw, 4),
+                        round(bounds[3] / sh, 4)
+                    ]
+                    rel_c = [round(center[0] / sw, 4), round(center[1] / sh, 4)]
                     nodes.append(PrunedNode(
                         id=counter,
                         class_name=cls.split(".")[-1],
@@ -195,7 +230,9 @@ class UIFormer:
                         clickable=clickable,
                         checked=checked,
                         bounds=bounds,
-                        center=center
+                        center=center,
+                        rel_bounds=rel_b,
+                        rel_center=rel_c
                     ))
                     counter += 1
 
@@ -216,6 +253,8 @@ class Locator:
     text: Optional[str] = None
     class_name: Optional[str] = None
     bounds: Optional[List[int]] = None
+    rel_bounds: Optional[List[float]] = None
+    rel_center: Optional[List[float]] = None
 
     @classmethod
     def from_node(cls, node: PrunedNode) -> "Locator":
@@ -224,7 +263,9 @@ class Locator:
             content_desc=node.content_desc,
             text=node.text,
             class_name=node.class_name,
-            bounds=node.bounds
+            bounds=node.bounds,
+            rel_bounds=node.rel_bounds,
+            rel_center=node.rel_center
         )
 
 @dataclass
@@ -242,8 +283,8 @@ class Skill:
     failure_count: int = 0
 
 class Matcher:
-    """Computes weighted multi-attribute score (SkillDroid weights)."""
-    WEIGHTS = {"res": 0.40, "desc": 0.25, "text": 0.20, "cls": 0.10, "bounds": 0.05}
+    """Computes weighted multi-attribute score (SkillDroid weights + relative spatial invariance)."""
+    WEIGHTS = {"res": 0.35, "desc": 0.25, "text": 0.20, "cls": 0.10, "bounds": 0.10}
 
     @classmethod
     def score(cls, loc: Locator, node: PrunedNode) -> float:
@@ -256,8 +297,17 @@ class Matcher:
             score += SequenceMatcher(None, loc.text.lower(), node.text.lower()).ratio() * cls.WEIGHTS["text"]
         if loc.class_name and loc.class_name.lower() in node.class_name.lower():
             score += cls.WEIGHTS["cls"]
-        if loc.bounds and loc.bounds == node.bounds:
+
+        # Relative spatial matching: invariant across phone resolutions (1080p vs 1440p)
+        if loc.rel_center and node.rel_center:
+            dist = ((loc.rel_center[0] - node.rel_center[0]) ** 2 + (loc.rel_center[1] - node.rel_center[1]) ** 2) ** 0.5
+            if dist <= 0.05:
+                score += cls.WEIGHTS["bounds"]
+            elif dist <= 0.15:
+                score += (1.0 - dist / 0.15) * cls.WEIGHTS["bounds"]
+        elif loc.bounds and loc.bounds == node.bounds:
             score += cls.WEIGHTS["bounds"]
+
         return score
 
     @classmethod
@@ -530,6 +580,7 @@ class AnimaRuntime:
 
     def run(self, goal: str, device: Device, params: Optional[Dict[str, str]] = None) -> ExecutionResult:
         start_time = time.time()
+        screen_size = device.get_screen_size()
         skill = self.db.get(goal)
 
         # -------------------------------------------------------------------
@@ -540,13 +591,13 @@ class AnimaRuntime:
             drift_detected = False
             for idx, step in enumerate(skill.steps):
                 xml = device.dump_xml()
-                nodes = self.pruner.prune(xml)
+                nodes = self.pruner.prune(xml, screen_size=screen_size)
 
                 # Popup interceptor check
                 if PopupInterceptor.check_and_handle(nodes, device, goal):
                     time.sleep(0.05)
                     xml = device.dump_xml()
-                    nodes = self.pruner.prune(xml)
+                    nodes = self.pruner.prune(xml, screen_size=screen_size)
 
                 target = Matcher.find_best(step.locator, nodes)
 
@@ -593,13 +644,13 @@ class AnimaRuntime:
         # 2. Cold Path: VLM Planning & Automatic Skill Compilation
         # -------------------------------------------------------------------
         xml = device.dump_xml()
-        nodes = self.pruner.prune(xml)
+        nodes = self.pruner.prune(xml, screen_size=screen_size)
 
         # Handle popups before planning
         if PopupInterceptor.check_and_handle(nodes, device, goal):
             time.sleep(0.05)
             xml = device.dump_xml()
-            nodes = self.pruner.prune(xml)
+            nodes = self.pruner.prune(xml, screen_size=screen_size)
 
         # Phase 2 Visual Fallback if XML has zero semantic nodes
         if not nodes:

@@ -177,5 +177,30 @@ class TestAnima(unittest.TestCase):
             self.assertIsNotNone(retrieved)
             self.assertEqual(retrieved.steps[0].locator.resource_id, "id/hotspot")
 
+    def test_cross_resolution_skill_replay(self):
+        """Verifies skills recorded on 1080p resolve and execute accurately on 1440p displays."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = os.path.join(tmpdir, "res_skills.db")
+            runtime = AnimaRuntime(db_path=db_path, planner=HeuristicPlanner())
+
+            # 1. Device A: 1080x2400 phone
+            dev_1080 = MockDevice(SAMPLE_XML, screen_size=(1080, 2400))
+            cold_res = runtime.run("toggle bluetooth", dev_1080)
+            self.assertTrue(cold_res.success)
+            self.assertEqual(dev_1080.history[-1], ("tap", (950, 490)))
+
+            # 2. Device B: 1440x3200 phone (scale = 1.333x)
+            # Switch bounds: [880*1.333, 430*1.333][1020*1.333, 550*1.333] -> [1173, 573][1360, 733]
+            xml_1440 = SAMPLE_XML.replace("[0,0][1080,2400]", "[0,0][1440,3200]") \
+                                  .replace("[880,430][1020,550]", "[1173,573][1360,733]")
+            dev_1440 = MockDevice(xml_1440, screen_size=(1440, 3200))
+
+            warm_res = runtime.run("toggle bluetooth", dev_1440)
+            self.assertTrue(warm_res.success)
+            self.assertEqual(warm_res.mode, "WARM_REPLAY")
+            self.assertEqual(warm_res.llm_calls, 0)
+            # Center of [1173,573][1360,733] is (1266, 653)
+            self.assertEqual(dev_1440.history[-1], ("tap", (1266, 653)))
+
 if __name__ == "__main__":
     unittest.main()
