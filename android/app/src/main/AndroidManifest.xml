@@ -19,6 +19,17 @@
         android:theme="@style/Theme.Anima">
 
 
+        <!-- Launcher Activity: judge-facing onboarding, permission gate, goal runner, 3-act demo -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:theme="@style/Theme.Anima">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
         <!-- Accessibility Service: UI Tree Inspection & Native Gesture Dispatch -->
         <service
             android:name=".AnimaAccessibilityService"
