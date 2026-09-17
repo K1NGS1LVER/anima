@@ -236,5 +236,32 @@ class TestAnima(unittest.TestCase):
             self.assertEqual(dev.history[-2], ("input_text", "09:15"))
             self.assertEqual(dev.history[-1], ("key", 4))
 
+    def test_page_transition_graph(self):
+        """Verifies Page Transition Graph (PTG) transition logging and HTML dashboard generation."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = os.path.join(tmpdir, "ptg_skills.db")
+            html_path = os.path.join(tmpdir, "dashboard.html")
+            runtime = AnimaRuntime(db_path=db_path, planner=HeuristicPlanner())
+            dev = MockDevice(SAMPLE_XML)
+
+            # 1. Run cold goal
+            runtime.run("toggle wifi", dev)
+            # 2. Run warm replay
+            runtime.run("toggle wifi", dev)
+
+            # Assert transitions were recorded
+            self.assertGreaterEqual(len(runtime.ptg.edges), 2)
+            self.assertGreaterEqual(len(runtime.ptg.nodes), 1)
+
+            # Export HTML dashboard
+            out = runtime.export_ptg(html_path)
+            self.assertEqual(out, html_path)
+            self.assertTrue(os.path.exists(html_path))
+
+            with open(html_path, "r", encoding="utf-8") as f:
+                content = f.read()
+            self.assertIn("⚡️ Anima Page Transition Graph (PTG)", content)
+            self.assertIn("Token Savings vs Baseline", content)
+
 if __name__ == "__main__":
     unittest.main()
