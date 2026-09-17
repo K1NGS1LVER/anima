@@ -28,12 +28,13 @@ Run `source android/env.sh` before any Gradle or ADB command below.
 ## Step 2 — Module builds
 
 - [x] Standard Gradle layout (`android/app/src/main/…`)
-- [ ] `res/values/strings.xml` with `accessibility_service_description`
-- [ ] `res/values/colors.xml` matching the overlay's palette
-- [ ] `res/values/themes.xml` — `Theme.Anima`
-- [ ] Vector adaptive launcher icons (`ic_launcher`, `ic_launcher_round`), no binaries
+- [x] `res/values/strings.xml` with `accessibility_service_description`
+- [x] `res/values/colors.xml` matching the overlay's palette
+- [x] `res/values/themes.xml` — `Theme.Anima`
+- [x] Vector adaptive launcher icons (`ic_launcher`, `ic_launcher_round`), no binaries
 - [x] `proguard-rules.pro` exists and keeps framework entry points
-- [ ] Manifest: `package=` removed, `POST_NOTIFICATIONS` added, FGS `<property>` added, `<activity>` declared
+- [x] Manifest: `package=` removed, `POST_NOTIFICATIONS` added, FGS `<property>` added, `<activity>` declared
+- [x] Resources + manifest link — `./gradlew :app:processDebugResources` BUILD SUCCESSFUL
 - [ ] **`./gradlew :app:assembleDebug` produces an APK** ← the gate for this step
 
 ## Step 3 — Kotlin engine
@@ -60,8 +61,8 @@ Run `source android/env.sh` before any Gradle or ADB command below.
 - [ ] `TextRatio` matches `difflib.SequenceMatcher` on values confirmed against real Python output
 - [ ] Matcher: exact-id 1.0, fuzzy desc, spatial falloff, sub-threshold null, first-node-wins ties
 - [ ] Cross-runtime: a `skills.json` written by Python imports into the Kotlin store and scores identically
-- [ ] CI `android` job builds the APK and uploads it as an artifact
-- [ ] `make apk` / `make android-test` shortcuts
+- [x] CI `android` job builds the APK and uploads it as an artifact — *written; unverified until the branch is pushed*
+- [x] `make apk` / `make android-test` shortcuts
 
 ## Step 6 — On-device (needs the phone plugged in)
 
@@ -76,7 +77,7 @@ Run `source android/env.sh` before any Gradle or ADB command below.
 ## Step 7 — Docs
 
 - [x] `PLAN.md`, `CHECKLIST.md`, `CURRENT_PROGRESS.md` created
-- [ ] `dev_plan.md`: Phase 9 row + honest correction of the Phase 5–6 status
-- [ ] `android/README.md`: real build/run/permission instructions
-- [ ] `README.md`: APK quickstart
-- [ ] `CONTRIBUTING.md`: pointer to these three docs
+- [x] `dev_plan.md`: Phase 9 row + honest correction of the Phase 5–6 status
+- [x] `android/README.md`: real build/run/permission instructions
+- [x] `README.md`: APK quickstart
+- [x] `CONTRIBUTING.md`: pointer to these three docs
