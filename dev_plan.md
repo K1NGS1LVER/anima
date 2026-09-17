@@ -74,7 +74,7 @@ Anima solves these bottlenecks by pairing **UIFormer-style structural pruning** 
 
 | Harvested Framework | Feature Harvested | Architectural Benefit & Metric Impact |
 | :--- | :--- | :--- |
-| **SkillDroid** | **Skill Compilation & 5-Attribute Weighted Locators** (`res_id` @ 0.40, `desc` @ 0.25, `text` @ 0.20, `class` @ 0.10, `bounds` @ 0.05) | Replaces stateless LLM re-derivation with persistent SQLite skill templates. Cuts task execution time from 180s to <0.01s with **0 LLM calls** on repeat runs. |
+| **SkillDroid** | **Skill Compilation & 5-Attribute Weighted Locators** (`res_id` @ 0.35, `desc` @ 0.25, `text` @ 0.20, `class` @ 0.10, spatial @ 0.10) | Replaces stateless LLM re-derivation with persistent SQLite skill templates. Cuts task execution time from 180s to <0.01s with **0 LLM calls** on repeat runs. |
 | **UIFormer** | **DSL UI Tree Compression Plugin** (Filter, Merge, Pass-through) | Bottom-up merging and filtering of non-semantic container nodes (`FrameLayout`, `LinearLayout`, `ViewGroup`), cutting token consumption by **>60% to 80%**. |
 | **ClawMobile** | **Deterministic-First Scheduling & Verify-and-Recover Loop** | Prioritizes system intents and ADB keyevents before invoking probabilistic vision models; automatically intercepts and dismisses system popups. |
 | **PokeClaw** | **Phone-Resident Execution Harness & Intent API** | Eliminates mandatory PC tethering; exposes an exported Android Activity interface (`io.agents.anima.RUN_TASK`) for external automation (Tasker, MacroDroid). |

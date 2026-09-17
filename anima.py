@@ -682,11 +682,14 @@ class PopupInterceptor:
 
 class BiometricGuard:
     """Detects biometric/session-expiry prompts mid-task and halts for HITL authentication."""
+    # Markers are matched against a lower-cased dump, so they must be lower-case
+    # themselves -- mixed-case entries here can never match.
     MARKERS = (
         "com.android.systemui:id/biometric_prompt",
         "biometric_prompt",
-        "android:id/passwordEntry",
-        "Confirmed Password",
+        "android:id/passwordentry",
+        "confirm your pattern",
+        "confirmed password",
     )
 
     @classmethod
@@ -953,6 +956,10 @@ class ExecutionResult:
     llm_calls: int
     latency_seconds: float
     message: str
+    # A3-style essential-state milestones: how many executed steps produced
+    # observable functional progress. Advisory -- a step that fails the check is
+    # still executed, because a false negative must never abort a live run.
+    steps_verified: int = 0
 
 class AnimaRuntime:
     """The central orchestrator: Intent -> Warm Replay OR Cold Planning -> Auto-Compilation."""
@@ -976,6 +983,7 @@ class AnimaRuntime:
         # -------------------------------------------------------------------
         if skill:
             executed = 0
+            verified = 0
             drift_detected = False
             for idx, step in enumerate(skill.steps):
                 xml = device.dump_xml()
@@ -1030,19 +1038,33 @@ class AnimaRuntime:
                     device.key(int(step.value or 4))
                 executed += 1
 
+                # A3 essential-state verification: re-read the screen and check the
+                # action produced functional progress (toggle flipped, new text, or a
+                # hierarchy change) rather than trusting the dispatch return value.
+                post_nodes = self.pruner.prune(device.dump_xml(), screen_size=screen_size)
+                if EssentialStateVerifier.verify_progress(nodes, post_nodes, target):
+                    verified += 1
+
                 # Record state transition in Page Transition Graph
                 target_desc = str(target.text or target.content_desc or target.resource_id or "element")
-                self.ptg.record_transition(nodes, nodes, step.action, target_desc, time.time() - start_time, 1 if drift_detected else 0)
+                self.ptg.record_transition(nodes, post_nodes, step.action, target_desc, time.time() - start_time, 1 if drift_detected else 0)
 
             skill.success_count += 1
             self.db.save(skill)
+            if drift_detected:
+                msg = "Self-healed drifted locator and succeeded"
+            else:
+                msg = "Speculative replay succeeded with 0 LLM calls"
+            if verified < executed:
+                msg += f" ({verified}/{executed} steps verified by essential-state milestones)"
             return ExecutionResult(
                 mode="WARM_REPLAY",
                 success=True,
                 steps_executed=executed,
                 llm_calls=1 if drift_detected else 0,
                 latency_seconds=time.time() - start_time,
-                message="Speculative replay succeeded with 0 LLM calls" if not drift_detected else "Self-healed drifted locator and succeeded"
+                message=msg,
+                steps_verified=verified,
             )
 
         # -------------------------------------------------------------------
@@ -1135,8 +1157,12 @@ class AnimaRuntime:
         )
         self.db.save(new_skill)
 
+        # A3 essential-state verification of the cold trajectory before it is trusted.
+        post_nodes = self.pruner.prune(device.dump_xml(), screen_size=screen_size)
+        cold_verified = 1 if EssentialStateVerifier.verify_progress(nodes, post_nodes, target_node) else 0
+
         target_desc = str(target_node.text or target_node.content_desc or target_node.resource_id or "element")
-        self.ptg.record_transition(nodes, nodes, action, target_desc, time.time() - start_time, 1)
+        self.ptg.record_transition(nodes, post_nodes, action, target_desc, time.time() - start_time, 1)
 
         return ExecutionResult(
             mode="COLD_COMPILED",
@@ -1144,7 +1170,8 @@ class AnimaRuntime:
             steps_executed=1,
             llm_calls=1,
             latency_seconds=time.time() - start_time,
-            message="Cold-start planned and compiled into SQLite skill"
+            message="Cold-start planned and compiled into SQLite skill",
+            steps_verified=cold_verified,
         )
 
 # ---------------------------------------------------------------------------

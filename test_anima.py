@@ -8,6 +8,7 @@ import unittest
 from anima import (
     ADBDevice,
     AnimaRuntime,
+    BiometricGuard,
     EssentialStateVerifier,
     HeuristicPlanner,
     LocalLiteRTPlanner,
@@ -150,6 +151,46 @@ class TestAnima(unittest.TestCase):
 
         progress = EssentialStateVerifier.verify_progress(initial_nodes, post_nodes, wifi_node)
         self.assertTrue(progress)
+
+    def test_essential_state_verification_is_wired_into_runtime(self):
+        """The A3 milestone check must run inside the replay loop, not merely exist.
+
+        Regression guard: verify_progress() was dead code for three phases -- the
+        runtime executed every step open-loop and reported success without ever
+        checking that an action changed anything on screen.
+        """
+        class TogglingDevice(MockDevice):
+            """Flips the Wi-Fi switch state on tap, like a real Settings screen."""
+            def tap(self, x, y):
+                super().tap(x, y)
+                self.xml = self.xml.replace('checked="false"', 'checked="true"')
+
+        class InertDevice(MockDevice):
+            """Accepts taps but never changes state -- a silently failing UI."""
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = os.path.join(tmpdir, "verify_skills.db")
+            runtime = AnimaRuntime(db_path=db_path, planner=HeuristicPlanner())
+
+            runtime.run("toggle wifi", TogglingDevice(SAMPLE_XML))  # cold compile
+            warm = runtime.run("toggle wifi", TogglingDevice(SAMPLE_XML))
+            self.assertEqual(warm.mode, "WARM_REPLAY")
+            self.assertEqual(warm.llm_calls, 0)
+            self.assertEqual(warm.steps_verified, warm.steps_executed)
+
+            # Same skill against a UI that never responds: the run still completes
+            # (an advisory check must never abort a live demo) but reports zero
+            # verified milestones and says so in the message.
+            inert = runtime.run("toggle wifi", InertDevice(SAMPLE_XML))
+            self.assertTrue(inert.success)
+            self.assertEqual(inert.steps_verified, 0)
+            self.assertIn("0/1 steps verified", inert.message)
+
+    def test_biometric_markers_are_case_normalized(self):
+        """Every marker must be reachable against the lower-cased dump."""
+        for marker in BiometricGuard.MARKERS:
+            self.assertEqual(marker, marker.lower(), f"marker {marker!r} can never match")
+            self.assertTrue(BiometricGuard.detect(f"<node text='{marker.upper()}' />"))
 
     def test_export_import_skills(self):
         """Verifies skill library JSON export and import."""
