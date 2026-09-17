@@ -64,16 +64,17 @@ make test
 # or
 python3 -m unittest test_anima.py
 ```
-*8 tests verifying UIFormer compression, security rejection, cold-to-warm loop, self-healing drift, visual fallback, popup interception, and skill export/import.*
+*11 hermetic unit tests verifying UIFormer compression, security rejection, cold-to-warm loop, self-healing drift, visual fallback, popup interception, skill export/import, relative screen normalization, dynamic parameter slots, and live Page Transition Graph export.*
 
-### 2. Live Dual-Mode Demonstration (The Hackathon Demo)
+### 2. Live Dual-Mode Demonstration & PTG Dashboard (The Hackathon Demo)
 ```zsh
 # Step 1: Cold Run (Planner reasons, executes action, auto-compiles to SQLite)
-python3 anima.py "toggle wifi" --mock
+python3 anima.py "toggle wifi" --mock --ptg
 
 # Step 2: Warm Run (Replays compiled skill in ~0.001s with 0 LLM calls!)
-python3 anima.py "toggle wifi" --mock
+python3 anima.py "toggle wifi" --mock --ptg
 ```
+*Opens `ptg_dashboard.html` in any browser to inspect the live Page Transition Graph and token/latency scoreboard.*
 
 ### 3. Run Benchmark Suite
 Compare Anima against stateless LLM agents:
@@ -109,20 +110,26 @@ python3 anima.py "toggle wifi"
 ```
 anima/
 ├── .github/workflows/ci.yml # Automated CI matrix (Python 3.10, 3.11, 3.12)
-├── anima.py                # Unified mobile GUI runtime (~450 LOC, pure stdlib)
-│   ├── Device              # Parameterized ADB & Mock controller
-│   ├── UIFormer            # DSL structural tree pruner
-│   ├── SkillDB             # SQLite skill storage & JSON export/import
-│   ├── Matcher             # 5-attribute weighted locator evaluator
-│   ├── Planners            # Gemini 2.5 Flash REST, Visual Fallback, Heuristic
-│   ├── Interceptors        # Popup Interceptor & Essential-State Verifier
-│   └── AnimaRuntime        # Dual-mode execution engine & benchmark harness
-├── test_anima.py           # Hermetic 8-test validation suite
-├── pyproject.toml          # Packaging metadata & console entrypoint (`anima`)
-├── Makefile                # Developer task runner (`make test`, `make demo`)
-├── CONTRIBUTING.md         # Contribution guidelines
-├── LICENSE                 # MIT License
-└── README.md               # Project documentation
+├── android/                 # Native Android APK Daemon & Service Harness
+│   ├── AndroidManifest.xml  # Accessibility service & intent declarations
+│   ├── res/xml/             # Accessibility service configuration
+│   └── src/                 # Kotlin AccessibilityService, FloatingOverlay, & TaskerReceiver
+├── anima.py                 # Unified mobile GUI runtime (~1000 LOC, pure stdlib)
+│   ├── Device               # Parameterized ADB & Mock controller
+│   ├── UIFormer             # DSL structural tree pruner
+│   ├── SkillDB              # SQLite skill storage & JSON export/import
+│   ├── Matcher              # 5-attribute weighted locator evaluator
+│   ├── Planners             # Gemini 2.5 Flash REST, Visual Fallback, Heuristic
+│   ├── Interceptors         # Popup Interceptor & Essential-State Verifier
+│   ├── PageTransitionGraph  # State hashing & interactive HTML dashboard
+│   └── AnimaRuntime         # Dual-mode execution engine & benchmark harness
+├── test_anima.py            # Hermetic 11-test validation suite
+├── pyproject.toml           # Packaging metadata & console entrypoint (`anima`)
+├── Makefile                 # Developer task runner (`make test`, `make demo`)
+├── CONTRIBUTING.md          # Contribution guidelines
+├── LICENSE                  # MIT License
+├── dev_plan.md              # Master engineering plan & single source of truth (SSOT)
+└── README.md                # Project documentation
 ```
 
 ---

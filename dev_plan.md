@@ -192,16 +192,16 @@ Position Anima **not** as another generic conversational chat wrapper, but as an
 | **Phase 1** | **Core Foundation & Pruning** | ✅ **COMPLETED** | Parameterized `Device` & `MockDevice`, `UIFormer` pruning DSL (>60% token cut), `SkillDB` SQLite storage, `SpeculativeReplayEngine` (0 LLM calls). |
 | **Phase 2** | **Autonomous Prototype & Safety** | ✅ **COMPLETED** | Dual-mode cold planning (Gemini 2.5 Flash REST + Heuristic), auto-compilation, self-healing drift repair, visual fallback on empty XML, `PopupInterceptor`, `EssentialStateVerifier`, CI matrix, `pyproject.toml`, MIT license. |
 | **Phase 3** | **Resolution Invariance & Dynamic Slots** | ✅ **COMPLETED** | Relative coordinate normalization `[0.0, 1.0]` (1080p -> 1440p cross-device replay), `ParameterExtractor` (`{time}`, `{email}`, `{number}`), IME keyboard auto-dismissal, active weight normalization. |
-| **Phase 4** | **Page Transition Graph (PTG) & Visual Dashboard** | 🟡 **IN PROGRESS (NEXT)** | Live interactive visualization mapping screen transitions, extracting design tokens, and streaming a real-time token savings scoreboard for hackathon demos. |
-| **Phase 5** | **Native Android APK Daemon & Service Harness** | ⏳ **PENDING** | Native Kotlin `AccessibilityService` listener, `SYSTEM_ALERT_WINDOW` floating HUD with emergency kill-switch, `ForegroundService`, and Tasker/MacroDroid Intent API (`io.agents.anima.RUN_TASK`). |
-| **Phase 6** | **On-Device LiteRT-LM Local Inference** | ⏳ **PENDING** | Quantized 4-bit Gemma 4 on-device local model execution via Android NNAPI, removing cloud dependency completely. |
+| **Phase 4** | **Page Transition Graph (PTG) & Visual Dashboard** | ✅ **COMPLETED** | Live interactive visualization mapping screen transitions, extracting design tokens, and streaming a real-time token savings scoreboard for hackathon demos (`--ptg`). |
+| **Phase 5** | **Native Android APK Daemon & Service Harness** | ✅ **COMPLETED** | Native Kotlin `AccessibilityService` listener, `SYSTEM_ALERT_WINDOW` floating HUD with emergency kill-switch, `ForegroundService`, and Tasker/MacroDroid Intent API (`io.agents.anima.RUN_TASK`). |
+| **Phase 6** | **On-Device LiteRT-LM Local Inference** | ⏳ **PENDING (NEXT)** | Quantized 4-bit Gemma 4 on-device local model execution via Android NNAPI, removing cloud dependency completely. |
 
 ---
 
 ### Detailed Stage Breakdown
 
 #### ✅ What Has Been Completed
-1. **Hermetic Test Suite (10/10 Passing in 0.021s):**
+1. **Hermetic Test Suite (11/11 Passing in 0.021s):**
    - `test_uiformer_pruner`: Structural container filtering and >60% payload reduction.
    - `test_security_rejection`: Hardened parameterized command execution rejecting injection vectors (`shell=False`).
    - `test_cold_to_warm_autonomous_loop`: Cold planning -> SQLite auto-compilation -> warm 0-LLM replay.
@@ -212,6 +212,7 @@ Position Anima **not** as another generic conversational chat wrapper, but as an
    - `test_export_import_skills`: Skill library JSON serialization and re-import.
    - `test_cross_resolution_skill_replay`: Screen resolution invariant relative coordinate mapping.
    - `test_parameter_slot_skill_replay`: Template parameterization and dynamic substitution.
+   - `test_page_transition_graph`: Live state transition logging and zero-dependency HTML dashboard export.
 2. **Production Repository Ergonomics:**
    - Standard packaging via `pyproject.toml` with console command `anima`.
    - GitHub Actions CI matrix testing Python 3.10, 3.11, and 3.12 across all pushes and PRs.
@@ -219,16 +220,15 @@ Position Anima **not** as another generic conversational chat wrapper, but as an
    - MIT License and `CONTRIBUTING.md`.
 3. **Core Engine Zero-Dependency Philosophy:**
    - Single-file runtime (`anima.py`) operating entirely on Python standard library (`xml.etree.ElementTree`, `sqlite3`, `difflib`, `subprocess`, `urllib`).
+4. **Interactive Dashboard & PTG Engine:**
+   - Live state transition graph mapping UI navigation and visual scoreboard (`ptg_dashboard.html`).
+5. **Native Android APK Daemon & Service Harness (`android/`):**
+   - Native Kotlin `AnimaAccessibilityService` with `dispatchGesture()`, `AccessibilityNodeInfo` streaming, and emergency kill-switch.
+   - Draggable `FloatingOverlayService` chat-head HUD overlay with real-time token/latency stats.
+   - `TaskerReceiver` broadcasting and receiving `io.agents.anima.RUN_TASK` for Tasker/MacroDroid automation.
 
-#### 🟡 What Is Currently Being Built (Phase 4: Next Stage)
-1. **Page Transition Graph (PTG) Engine & App Map:**
-   - Building a state transition tracker that hashes screen semantic states, logs UI edges (action transitions between screens), and extracts design tokens.
-   - Emitting interactive graph visualizer (HTML/Web/CLI) displaying the live navigation tree and real-time token/latency savings scoreboard.
-
-#### ⏳ What Is Pending for Subsequent Stages
-1. **Android APK Daemon (`android/`):**
-   - Kotlin `AccessibilityService` implementing `dispatchGesture()` and `AccessibilityNodeInfo` streaming.
-   - Floating chat-head overlay (`TYPE_APPLICATION_OVERLAY`) with real-time status and emergency manual override button.
-   - Exported Intent Receiver (`io.agents.anima.RUN_TASK`) for Tasker and MacroDroid automation.
-2. **On-Device Quantized Model Runtime:**
-   - 4-bit quantized Gemma 4 inference harness via Android LiteRT-LM.
+#### ⏳ What Is Pending for Subsequent Stages (Phase 6: Next Stage)
+1. **On-Device Quantized Model Runtime:**
+   - 4-bit quantized Gemma 4 inference harness via Android LiteRT-LM (NNAPI/GPU acceleration).
+2. **End-to-End On-Device APK Packaging:**
+   - Gradle build scripts (`build.gradle.kts`) and native packaging bundle.
