@@ -1,4 +1,4 @@
-"""test_anima.py - Hermetic verification tests for Anima runtime.
+"""test_anima.py - Comprehensive hermetic verification test suite for Anima.
 Runs with pure python3 -m unittest test_anima.py (stdlib).
 """
 
@@ -8,9 +8,12 @@ import unittest
 from anima import (
     ADBDevice,
     AnimaRuntime,
+    EssentialStateVerifier,
     HeuristicPlanner,
     Locator,
     MockDevice,
+    PopupInterceptor,
+    PrunedNode,
     Skill,
     SkillDB,
     Step,
@@ -22,9 +25,9 @@ SAMPLE_XML = """<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
   <node index="0" class="android.widget.FrameLayout" bounds="[0,0][1080,2400]">
     <node index="0" class="android.widget.LinearLayout" bounds="[0,0][1080,2400]">
       <node index="0" class="android.widget.TextView" text="Network &amp; internet" bounds="[72,300][600,380]" />
-      <node index="1" class="android.widget.Switch" resource-id="com.android.settings:id/switch_wifi" content-desc="Wi-Fi" clickable="true" bounds="[880,280][1020,400]" />
+      <node index="1" class="android.widget.Switch" resource-id="com.android.settings:id/switch_wifi" content-desc="Wi-Fi" clickable="true" checkable="true" checked="false" bounds="[880,280][1020,400]" />
       <node index="2" class="android.widget.TextView" text="Bluetooth" bounds="[72,450][600,530]" />
-      <node index="3" class="android.widget.Switch" resource-id="com.android.settings:id/switch_bt" content-desc="Bluetooth" clickable="true" bounds="[880,430][1020,550]" />
+      <node index="3" class="android.widget.Switch" resource-id="com.android.settings:id/switch_bt" content-desc="Bluetooth" clickable="true" checkable="true" checked="false" bounds="[880,430][1020,550]" />
     </node>
   </node>
 </hierarchy>
@@ -35,10 +38,19 @@ DRIFTED_XML = """<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
   <node index="0" class="android.widget.FrameLayout" bounds="[0,0][1080,2400]">
     <node index="0" class="android.widget.LinearLayout" bounds="[0,0][1080,2400]">
       <node index="0" class="android.widget.TextView" text="Connected devices" bounds="[72,150][600,230]" />
-      <!-- Wi-Fi shifted down because a new card was inserted above -->
       <node index="1" class="android.widget.TextView" text="Network &amp; internet" bounds="[72,500][600,580]" />
-      <node index="2" class="android.widget.Switch" resource-id="com.android.settings:id/switch_wifi_v2" content-desc="Wi-Fi" clickable="true" bounds="[880,480][1020,600]" />
+      <node index="2" class="android.widget.Switch" resource-id="com.android.settings:id/switch_wifi_v2" content-desc="Wi-Fi" clickable="true" checkable="true" checked="false" bounds="[880,480][1020,600]" />
     </node>
+  </node>
+</hierarchy>
+"""
+
+POPUP_XML = """<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
+<hierarchy rotation="0">
+  <node index="0" class="android.widget.FrameLayout" bounds="[0,0][1080,2400]">
+    <node index="0" class="android.widget.TextView" text="Allow Anima to access location?" bounds="[100,800][980,1000]" />
+    <node index="1" class="android.widget.Button" text="Allow" clickable="true" bounds="[600,1100][900,1200]" />
+    <node index="2" class="android.widget.Button" text="Don't allow" clickable="true" bounds="[200,1100][500,1200]" />
   </node>
 </hierarchy>
 """
@@ -48,17 +60,14 @@ class TestAnima(unittest.TestCase):
         pruner = UIFormer()
         nodes = pruner.prune(SAMPLE_XML)
 
-        # Containers pruned, 4 semantic nodes retained
         self.assertEqual(len(nodes), 4)
         self.assertEqual(nodes[0].text, "Network & internet")
         self.assertEqual(nodes[1].resource_id, "com.android.settings:id/switch_wifi")
         self.assertEqual(nodes[1].center, [950, 340])
 
-        # Verify token reduction via compact Agent-DOM
         raw_len = len(SAMPLE_XML)
         compact_json = pruner.to_compact_json(nodes)
-        pruned_len = len(compact_json)
-        reduction = (1.0 - (pruned_len / raw_len)) * 100
+        reduction = (1.0 - (len(compact_json) / raw_len)) * 100
         self.assertGreater(reduction, 60.0)
 
     def test_security_rejection(self):
@@ -69,10 +78,6 @@ class TestAnima(unittest.TestCase):
             adb._run(["shell", "input && echo pwned"])
 
     def test_cold_to_warm_autonomous_loop(self):
-        """Tests the full autonomous loop:
-        1. Cold goal -> planned by heuristic/VLM -> action dispatched -> skill compiled into SQLite.
-        2. Warm goal -> matched in SQLite -> replayed with 0 LLM calls in <0.01s!
-        """
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = os.path.join(tmpdir, "test_skills.db")
             runtime = AnimaRuntime(db_path=db_path, planner=HeuristicPlanner())
@@ -83,10 +88,9 @@ class TestAnima(unittest.TestCase):
             self.assertTrue(cold_res.success)
             self.assertEqual(cold_res.mode, "COLD_COMPILED")
             self.assertEqual(cold_res.llm_calls, 1)
-            # Switch center for bluetooth is (950, 490)
             self.assertEqual(device.history[-1], ("tap", (950, 490)))
 
-            # Warm Run (Second time -> Zero LLM calls)
+            # Warm Run (Zero LLM calls)
             warm_res = runtime.run("toggle bluetooth", device)
             self.assertTrue(warm_res.success)
             self.assertEqual(warm_res.mode, "WARM_REPLAY")
@@ -94,24 +98,84 @@ class TestAnima(unittest.TestCase):
             self.assertEqual(device.history[-1], ("tap", (950, 490)))
 
     def test_self_healing_drift(self):
-        """Tests that when UI drift occurs, the runtime detects it,
-        re-grounds via planner, repairs the skill in SQLite, and succeeds.
-        """
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = os.path.join(tmpdir, "drift_skills.db")
             runtime = AnimaRuntime(db_path=db_path, planner=HeuristicPlanner())
             
-            # Step 1: Learn skill on initial XML
+            # Step 1: Learn on initial XML
             device1 = MockDevice(SAMPLE_XML)
             runtime.run("toggle wifi", device1)
 
-            # Step 2: Screen drifts (new element inserted, wifi shifted down)
+            # Step 2: UI shifts
             device2 = MockDevice(DRIFTED_XML)
             drift_res = runtime.run("toggle wifi", device2)
             self.assertTrue(drift_res.success)
-            # Center of new location [880,480][1020,600] is (950, 540)
             self.assertEqual(device2.history[-1], ("tap", (950, 540)))
             self.assertIn("Self-healed", drift_res.message)
+
+    def test_visual_fallback(self):
+        """When accessibility XML is empty (canvas/game), visual fallback is triggered."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = os.path.join(tmpdir, "vis_skills.db")
+            runtime = AnimaRuntime(db_path=db_path, planner=HeuristicPlanner())
+            # Device with empty XML hierarchy
+            empty_device = MockDevice(xml="")
+
+            res = runtime.run("tap play button", empty_device)
+            self.assertTrue(res.success)
+            self.assertEqual(res.mode, "VISUAL_FALLBACK")
+            self.assertEqual(empty_device.history[-1], ("tap", (540, 960)))
+
+    def test_popup_interception(self):
+        """Verifies system popups/permission dialogs are intercepted and dismissed."""
+        pruner = UIFormer()
+        popup_nodes = pruner.prune(POPUP_XML)
+        device = MockDevice(POPUP_XML)
+
+        handled = PopupInterceptor.check_and_handle(popup_nodes, device, goal="toggle wifi")
+        self.assertTrue(handled)
+        # Center of "Allow" [600,1100][900,1200] is (750, 1150)
+        self.assertEqual(device.history[-1], ("tap", (750, 1150)))
+
+    def test_essential_state_progress(self):
+        """Verifies A3 milestone verification detects state change."""
+        pruner = UIFormer()
+        initial_nodes = pruner.prune(SAMPLE_XML)
+        wifi_node = initial_nodes[1]
+
+        # Post-action nodes where checked state changed from false to true
+        post_xml = SAMPLE_XML.replace('checked="false"', 'checked="true"')
+        post_nodes = pruner.prune(post_xml)
+
+        progress = EssentialStateVerifier.verify_progress(initial_nodes, post_nodes, wifi_node)
+        self.assertTrue(progress)
+
+    def test_export_import_skills(self):
+        """Verifies skill library JSON export and import."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = os.path.join(tmpdir, "skills.db")
+            export_path = os.path.join(tmpdir, "exported.json")
+            db = SkillDB(db_path)
+
+            skill = Skill(
+                intent="turn on hotspot",
+                steps=[Step(action="tap", locator=Locator(resource_id="id/hotspot"))]
+            )
+            db.save(skill)
+
+            # Export
+            n = db.export_json(export_path)
+            self.assertEqual(n, 1)
+
+            # Import into clean DB
+            new_db_path = os.path.join(tmpdir, "new_skills.db")
+            new_db = SkillDB(new_db_path)
+            imported = new_db.import_json(export_path)
+            self.assertEqual(imported, 1)
+
+            retrieved = new_db.get("turn on hotspot")
+            self.assertIsNotNone(retrieved)
+            self.assertEqual(retrieved.steps[0].locator.resource_id, "id/hotspot")
 
 if __name__ == "__main__":
     unittest.main()

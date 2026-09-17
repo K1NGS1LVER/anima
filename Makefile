@@ -9,6 +9,9 @@ demo:
 	@echo "\n==> Running Warm 0-LLM Speculative Replay..."
 	python3 anima.py "toggle wifi" --mock
 
+benchmark:
+	python3 anima.py --benchmark
+
 clean:
 	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 	find . -type f -name "*.pyc" -delete 2>/dev/null || true
