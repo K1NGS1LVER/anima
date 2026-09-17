@@ -3,7 +3,7 @@
 > **Document Classification:** Internal Technical Blueprint & Developer Roadmap  
 > **Target Platform:** Android (Native APK / Embedded SDK) + Host-Tethered Python Runtime  
 > **Audience:** Core Engineering Contributors, AI Researchers, and Hackathon Collaborators  
-> **Status:** ✅ Phases 1–8 Complete — Including Hackathon Demo, HITL & D3 Dashboard.
+> **Status:** Phases 1–8 complete for the Python runtime. ⚠️ Phase 9 in progress on `dev-sam`: the Android module was scaffolding, not a shipping APK — see §13.
 
 ---
 
@@ -210,6 +210,7 @@ Position Anima **not** as another generic conversational chat wrapper, but as an
 | **Phase 6** | **On-Device LiteRT-LM Local Inference & Packaging** | ✅ **COMPLETED** | `LocalLiteRTPlanner` for quantized Gemma 4 / LiteRT-LM inference via local HTTP/socket, 100% offline privacy, `--local` CLI flag, and standalone Gradle build setup (`build.gradle.kts`, `settings.gradle.kts`). |
 | **Phase 7** | **End-to-End Verification & Multi-Screen Flow Validation** | ✅ **COMPLETED** | 5 realistic E2E journey scenarios (`test_e2e.py`), stateful multi-screen device emulation, form input slot substitution, mid-flight popup auto-recovery, and CLI subprocess verification. |
 | **Phase 8** | **Polish, Demo & Hackathon Readiness** | ✅ **COMPLETED** | Staged 3-act `make demo` (Cold→Warm→Chaos) with live token-savings scoreboard, Biometric & Session-Expiry HITL (Python `BiometricGuard` + Kotlin haptic `biometricHalt()`), D3.js v7 force-directed PTG dashboard, skill import/export CLI. Suite at 20/20 tests. |
+| **Phase 9** | **Buildable APK & On-Device Engine** | 🚧 **IN PROGRESS** | Gradle wrapper + standard module layout, every AAPT2 blocker fixed, launcher Activity with permission gate, Kotlin port of the skill engine (store/matcher/replay) so the phone replays with 0 LLM calls, JVM unit tests, and an Android CI job that builds the APK. Tracked in `PLAN.md` / `CHECKLIST.md` / `CURRENT_PROGRESS.md`. |
 
 ---
 
@@ -331,3 +332,57 @@ This section records key design decisions made during development sessions so fu
 - **`08` → `0d1f17f`**: Re-used existing P2 export/import CLI (already shipped in Phase 1 `main()`); backlog item closed without new code.
 - **Demo craftsmanship decision:** `make demo` had run the bare CLI twice, which under-sells the pitch. Replaced with an in-process staged 3-act `run_demo()` (Cold→Warm→Chaos) using the hermetic `DemoDevice` — no API key, no emulator, fully deterministic. ANSI output, real byte-reduction measurements, and live timing, subprocess-verified by a new E2E test.
 - **HITL placement decision (§11.6):** Python `BiometricGuard` checks raw XML *before* popup interception and planner dispatch on both cold and warm paths, so a biometric screen never reaches an autonomous tap. Kotlin `biometricHalt()` mirrors it because the standalone APK runs without the Python bridge.
+
+---
+
+## 13. Phase 9 — Buildable APK & On-Device Engine
+
+### 13.1 Correcting the Phase 5–6 Status
+
+Phases 5 and 6 were marked ✅ COMPLETED in §9 on the strength of the Kotlin source existing. The module had never been compiled — CI never touched it, and the repository had never contained a Gradle wrapper. An audit against the actual build found:
+
+- **Three hard AAPT2 failures.** `@string/accessibility_service_description`, `@mipmap/ic_launcher` and `@mipmap/ic_launcher_round` were all referenced with no `res/values/` or `res/mipmap-*/` anywhere in the module.
+- **A guaranteed runtime crash.** `FloatingOverlayService` declares `foregroundServiceType="specialUse"` without the `PROPERTY_SPECIAL_USE_FGS_SUBTYPE` `<property>` child that targetSdk 34 requires; `startForeground()` would have thrown `MissingForegroundServiceTypeException` on first launch.
+- **No entry point.** No `<activity>` of any kind, so no launcher icon, and no way to grant the accessibility or overlay permissions — both of which require a user journey the app has to start.
+- **No agent in the app.** `TaskerReceiver` captured the node tree and then set `val success = true`. Every on-device "0 LLM calls" claim was really the Python process on a laptop.
+- **A missing `proguard-rules.pro`** referenced by the release build type.
+
+None of this reflects badly on the design — the Kotlin itself compiles clean and the architecture held up. It reflects the absence of a build in the loop. Phase 9's first act is therefore an Android CI job, so "it compiles" is a check rather than a claim.
+
+### 13.2 Scope
+
+1. Gradle wrapper pinned to 8.9, standard `android/app/src/main/{kotlin,res}` layout, AGP 8.5.2 / Kotlin 1.9.24 / JDK 17.
+2. Every resource, manifest and packaging blocker above, fixed.
+3. `io.agents.anima.engine` — a Kotlin port of the runtime (models, UIFormer pruning, weighted matcher, SQLite skill store, parameter extractor, replay loop with drift healing) so the phone genuinely replays compiled skills with **zero network calls**.
+4. `MainActivity` — permission gate with live status and deep links, goal runner, and the 3-act demo with an on-screen scoreboard.
+5. Pure-JVM unit tests plus a cross-runtime test proving a `skills.json` written by Python scores identically in Kotlin.
+6. On-device validation over ADB on a physical phone.
+
+Working docs: `PLAN.md`, `CHECKLIST.md`, `CURRENT_PROGRESS.md`.
+
+### 13.3 Decisions Log (continued from §11)
+
+#### 13.3.1 Standard Gradle Layout — Adopted
+- **Decision:** `android/` moved from a flat `src/` + `sourceSets` override to `android/app/src/main/{kotlin,res}` with a root/`:app` split.
+- **Reason:** The override worked in principle but fought Android Studio, hid the missing-resource problem, and gave contributors no familiar shape to navigate.
+
+#### 13.3.2 Kotlin Engine Mirrors the Python Contract Byte-for-Byte
+- **Decision:** Identical SQLite schema, identical locator weights, identical snake_case JSON keys; enforced by a test.
+- **Reason:** A skill compiled on a laptop must import into the phone unchanged. That portability is the cross-runtime story, and the cheapest way to keep it true is to make divergence fail a test.
+- **Consequence:** Python's `difflib.SequenceMatcher` has no JVM stdlib equivalent, so the Gestalt ratio is reimplemented in Kotlin and pinned against values taken from real Python output.
+
+#### 13.3.3 No Jetpack Compose
+- **Decision:** XML layouts + Material components.
+- **Reason:** A smaller dependency graph and faster, more predictable builds. The build has to be reproducible on a hackathon table, and Compose buys nothing for four static cards and a scoreboard.
+
+#### 13.3.4 Published History Is Not Rewritten
+- **Decision:** `d7036ea` is labelled `feat(demo)` but also carries the HITL/IPGuard and D3 changes, because `anima.py` was staged as a unit. It stays as-is.
+- **Reason:** It is already on `origin/main` and teammates may have pulled it. Rewriting shared history for a cosmetic gain costs more than the imperfect label. Recorded here and in `CURRENT_PROGRESS.md` so it doesn't confuse a future bisect.
+
+#### 13.3.5 The Demo Must Survive a Failed Permission Grant
+- **Decision:** The 3-act demo runs against a bundled hermetic fixture and requires no device permissions, no target app and no network.
+- **Reason:** Accessibility and overlay grants are multi-screen system journeys that can fail or stall on an unfamiliar phone in front of judges. The pitch cannot depend on them succeeding live.
+
+#### 13.3.6 Essential-State Verification Is Advisory, Never Fatal
+- **Decision:** A step that fails its milestone check is still executed, and the run still completes; unverified steps are counted and reported in the result.
+- **Reason:** The check is a heuristic over screen diffs. A false negative aborting a live run is a far worse failure than a step that silently did nothing, and the count still surfaces the problem honestly.
