@@ -558,25 +558,101 @@ class GeminiPlanner(BasePlanner):
 
 class HeuristicPlanner(BasePlanner):
     """Hermetic keyword/semantic matcher on Agent-DOM when offline or without API key."""
+    _NON_ALNUM = re.compile(r"[^a-z0-9]+")
+
+    @classmethod
+    def _flatten(cls, text: Optional[str]) -> str:
+        """Strip punctuation so goal words survive real-world label typography.
+
+        Android labels are written for humans: "Wi-Fi", "Do not disturb",
+        "Bluetooth & devices". A plain substring test fails every one of those
+        against a goal like "toggle wifi".
+        """
+        return cls._NON_ALNUM.sub("", (text or "").lower())
+
+    # Widget classes that carry an on/off state. MIUI renders the Wi-Fi master
+    # switch as a CheckBox, AOSP as a Switch, others as a SlidingButton.
+    _TOGGLE_CLASSES = ("switch", "togglebutton", "checkbox", "compoundbutton", "slidingbutton")
+    _TOGGLE_VERBS = ("toggle", "turn on", "turn off", "turn ", "enable", "disable", "switch")
+
+    @classmethod
+    def _wants_toggle(cls, goal: str) -> bool:
+        g = goal.lower()
+        return any(v in g for v in cls._TOGGLE_VERBS)
+
+    @classmethod
+    def _encloses_toggle(cls, container: PrunedNode, nodes: List[PrunedNode]) -> bool:
+        x1, y1, x2, y2 = container.bounds
+        for n in nodes:
+            if n is container:
+                continue
+            if not any(t in n.class_name.lower() for t in cls._TOGGLE_CLASSES):
+                continue
+            cx, cy = n.center
+            if x1 <= cx <= x2 and y1 <= cy <= y2:
+                return True
+        return False
+
+    @staticmethod
+    def _actionable(node: PrunedNode, nodes: List[PrunedNode]) -> PrunedNode:
+        """Redirect a matched label to the row that actually handles the tap.
+
+        The node carrying the text is usually an inert TextView nested inside a
+        clickable container, so tapping the label itself does nothing. Falls back
+        to the smallest clickable node whose bounds contain this one -- the
+        closest actionable ancestor, without needing parent pointers.
+        """
+        if node.clickable:
+            return node
+        cx, cy = node.center
+        best, best_area = None, None
+        for n in nodes:
+            if not n.clickable:
+                continue
+            x1, y1, x2, y2 = n.bounds
+            if x1 <= cx <= x2 and y1 <= cy <= y2:
+                area = (x2 - x1) * (y2 - y1)
+                if best_area is None or area < best_area:
+                    best, best_area = n, area
+        return best or node
+
     def plan_step(self, goal: str, dom_json: str, nodes: List[PrunedNode]) -> Optional[Tuple[str, PrunedNode, Optional[str]]]:
-        tokens = [t.lower() for t in re.findall(r"\w+", goal)]
+        # Tokens of 1-2 characters ("a", "my", "to") match almost any label --
+        # "a" alone matches "Storage" -- so they only add noise to the score.
+        tokens = [t.lower() for t in re.findall(r"\w+", goal) if len(t) > 2]
         best_node = None
         best_score = 0
+        wants_toggle = self._wants_toggle(goal)
 
         for n in nodes:
             score = 0
             candidate_text = f"{n.text or ''} {n.content_desc or ''} {n.resource_id or ''}".lower()
+            candidate_flat = self._flatten(candidate_text)
+            labels = {self._flatten(n.text), self._flatten(n.content_desc)}
             for t in tokens:
-                if t in candidate_text:
+                t_flat = self._flatten(t)
+                if t in candidate_text or t_flat in candidate_flat:
                     score += 2
+                # A label that *is* the goal word beats one that merely mentions
+                # it. On a real Wi-Fi settings screen the toggle is labelled
+                # "Wi-Fi", while every network row carries a content-desc like
+                # "MyNetwork,Connected,Wi-Fi signal full." -- without this the
+                # agent taps a network instead of the switch.
+                if t_flat and t_flat in labels:
+                    score += 3
             if n.clickable and score > 0:
                 score += 1
+            # For a toggle goal, prefer the label sitting in a row that actually
+            # owns a switch. A settings screen titled "Wi-Fi" carries the word in
+            # its action bar too, and tapping that does nothing.
+            if score > 0 and wants_toggle and self._encloses_toggle(self._actionable(n, nodes), nodes):
+                score += 3
             if score > best_score:
                 best_score = score
                 best_node = n
 
         if best_node:
-            return "tap", best_node, None
+            return "tap", self._actionable(best_node, nodes), None
         return None
 
     def plan_visual(self, goal: str, screenshot_bytes: bytes) -> Optional[Tuple[str, Tuple[int, int], Optional[str]]]:

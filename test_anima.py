@@ -192,6 +192,52 @@ class TestAnima(unittest.TestCase):
             self.assertEqual(marker, marker.lower(), f"marker {marker!r} can never match")
             self.assertTrue(BiometricGuard.detect(f"<node text='{marker.upper()}' />"))
 
+    def test_planner_matches_real_world_label_typography(self):
+        """Goal words must survive punctuation in real Android labels.
+
+        Regression from a physical Redmi Note 11: MIUI's Wi-Fi screen labels the
+        toggle "Wi-Fi", and `"wifi" in "wi-fi"` is False, so the planner found
+        nothing and the task failed on-device. The mock XMLs hid this because
+        their resource-ids happen to contain the bare word ("switch_wifi").
+        """
+        xml = """<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
+<hierarchy rotation="0">
+  <node index="0" class="android.widget.FrameLayout" bounds="[0,0][1080,2400]">
+    <node index="0" class="android.widget.LinearLayout" resource-id="android:id/row" clickable="true" bounds="[0,200][1080,400]">
+      <node index="0" class="android.widget.TextView" resource-id="android:id/title" text="Wi-Fi" bounds="[72,260][600,340]" />
+    </node>
+    <node index="1" class="android.widget.TextView" text="Do not disturb" bounds="[72,500][600,580]" />
+  </node>
+</hierarchy>
+"""
+        nodes = UIFormer().prune(xml)
+        planner = HeuristicPlanner()
+
+        decision = planner.plan_step("toggle wifi", "", nodes)
+        self.assertIsNotNone(decision, "punctuated label 'Wi-Fi' must match goal word 'wifi'")
+
+        # And the tap must land on the clickable row, not the inert label inside it.
+        _action, target, _val = decision
+        self.assertTrue(target.clickable)
+        self.assertEqual(target.resource_id, "android:id/row")
+
+    def test_planner_redirects_label_taps_to_the_clickable_row(self):
+        """A matched label that is not clickable resolves to its smallest clickable container."""
+        xml = """<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
+<hierarchy rotation="0">
+  <node index="0" class="android.widget.FrameLayout" clickable="true" bounds="[0,0][1080,2400]">
+    <node index="0" class="android.widget.LinearLayout" resource-id="android:id/row" clickable="true" bounds="[0,200][1080,400]">
+      <node index="0" class="android.widget.TextView" text="Bluetooth" bounds="[72,260][600,340]" />
+    </node>
+  </node>
+</hierarchy>
+"""
+        nodes = UIFormer().prune(xml)
+        _action, target, _val = HeuristicPlanner().plan_step("open bluetooth", "", nodes)
+
+        # The whole-screen FrameLayout also contains the label; the tighter row wins.
+        self.assertEqual(target.resource_id, "android:id/row")
+
     def test_export_import_skills(self):
         """Verifies skill library JSON export and import."""
         with tempfile.TemporaryDirectory() as tmpdir:

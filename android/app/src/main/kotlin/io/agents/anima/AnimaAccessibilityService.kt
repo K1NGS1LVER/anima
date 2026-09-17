@@ -133,7 +133,11 @@ class AnimaAccessibilityService : AccessibilityService() {
         node.getBoundsInScreen(bounds)
 
         // Only keep interactive or semantically meaningful nodes (UIFormer logic)
+        // isCheckable matters: a Wi-Fi master switch often has no text, no
+        // content-desc and is not itself clickable (the row around it is), so
+        // without this the agent cannot see toggles at all.
         val isMeaningful = node.isClickable || node.isScrollable || node.isEditable ||
+                node.isCheckable ||
                 !node.text.isNullOrBlank() || !node.contentDescription.isNullOrBlank()
 
         if (isMeaningful && bounds.width() > 0 && bounds.height() > 0) {
