@@ -35,38 +35,38 @@ Run `source android/env.sh` before any Gradle or ADB command below.
 - [x] `proguard-rules.pro` exists and keeps framework entry points
 - [x] Manifest: `package=` removed, `POST_NOTIFICATIONS` added, FGS `<property>` added, `<activity>` declared
 - [x] Resources + manifest link — `./gradlew :app:processDebugResources` BUILD SUCCESSFUL
-- [ ] **`./gradlew :app:assembleDebug` produces an APK** ← the gate for this step
+- [x] **`./gradlew :app:assembleDebug` produces an APK** — app-debug.apk, 5.7 MB ✅
 
 ## Step 3 — Kotlin engine
 
-- [ ] `Models.kt`, `UIFormer.kt`, `Matcher.kt`, `TextRatio.kt`, `ParameterExtractor.kt` — no `android.*` imports, JVM-testable
-- [ ] `SkillStore.kt` — schema identical to Python, snake_case JSON keys
-- [ ] `ReplayEngine.kt` — biometric guard first, popup intercept, drift heal, IME dismissal after text
-- [ ] `AccessibilityDevice` + hermetic `DemoDevice`
-- [ ] `TaskerReceiver` reports the engine's real result instead of `val success = true`
-- [ ] Zero network calls anywhere in the Kotlin engine — `grep -rE "HttpURLConnection|okhttp|java.net.URL" android/app/src/main` returns nothing
+- [x] `Models.kt`, `UIFormer.kt`, `Matcher.kt`, `TextRatio.kt`, `ParameterExtractor.kt` — no `android.*` imports, JVM-testable
+- [x] `SkillStore.kt` — schema identical to Python, snake_case JSON keys
+- [x] `ReplayEngine.kt` — biometric guard first, popup intercept, drift heal, IME dismissal after text
+- [x] `AccessibilityDevice` + hermetic `DemoDevice`
+- [x] `TaskerReceiver` reports the engine's real result instead of `val success = true`
+- [x] Zero network calls anywhere in the app, and no INTERNET permission — `grep -rE "HttpURLConnection|okhttp|java.net.URL" android/app/src/main` returns nothing
 
 ## Step 4 — Judge-facing app
 
-- [ ] Permission gate: live status + deep links for Accessibility and Draw-Over-Apps, re-checked in `onResume`
-- [ ] `POST_NOTIFICATIONS` runtime request on API 33+
-- [ ] Goal input + Run, disabled with an explanation until the service is on
-- [ ] 3-act demo button, streaming each act into the UI as it lands
-- [ ] Scoreboard: mode, latency, LLM calls, cost vs. the ~180s / ~$0.90 stateless baseline
-- [ ] Engine calls run off the main thread
+- [x] Permission gate: live status + deep links for Accessibility and Draw-Over-Apps, re-checked in `onResume`
+- [x] `POST_NOTIFICATIONS` runtime request on API 33+
+- [x] Goal input + Run, disabled with an explanation until the service is on
+- [x] 3-act demo button, streaming each act into the UI as it lands
+- [x] Scoreboard: mode, latency, LLM calls, cost vs. the ~180s / ~$0.90 stateless baseline
+- [x] Engine calls run off the main thread
 
 ## Step 5 — Tests & CI
 
-- [ ] `./gradlew :app:testDebugUnitTest` green
-- [ ] `TextRatio` matches `difflib.SequenceMatcher` on values confirmed against real Python output
-- [ ] Matcher: exact-id 1.0, fuzzy desc, spatial falloff, sub-threshold null, first-node-wins ties
-- [ ] Cross-runtime: a `skills.json` written by Python imports into the Kotlin store and scores identically
+- [x] `./gradlew :app:testDebugUnitTest` green — **65 tests, 0 failures, 0 errors**
+- [x] `TextRatio` matches `difflib.SequenceMatcher` on values confirmed against real Python output
+- [x] Matcher: exact-id 1.0, fuzzy desc, spatial falloff, sub-threshold null, first-node-wins ties
+- [x] Cross-runtime: a `skills.json` written by Python imports into the Kotlin store and scores identically
 - [x] CI `android` job builds the APK and uploads it as an artifact — *written; unverified until the branch is pushed*
 - [x] `make apk` / `make android-test` shortcuts
 
 ## Step 6 — On-device (needs the phone plugged in)
 
-- [ ] `adb devices` lists the phone
+- [~] `adb devices` lists the phone — connected as `cdf9a5bc`, **status `unauthorized`**: accept the "Allow USB debugging?" dialog on the phone
 - [ ] `./gradlew :app:installDebug` succeeds
 - [ ] App opens, both permission rows flip to ENABLED after the guided grants
 - [ ] 3-act demo runs on-screen, Act 2 reports 0 LLM calls

@@ -5,7 +5,9 @@
 
 ## Where to pick up
 
-**Next action:** finish Step 2 — get `./gradlew :app:assembleDebug` to produce an APK. The Gradle scaffolding is in place; what's outstanding is the `res/values/*` resources, the vector launcher icons, and the manifest fixes.
+**Next action:** Step 6, on-device validation. The APK builds and installs cleanly; what's left is running it on a real phone. The phone is connected over USB but `adb` reports it `unauthorized` — accept the "Allow USB debugging?" dialog on the phone, then `make apk-install`.
+
+**Steps 0–5 are done and verified.** `./gradlew :app:assembleDebug` produces a 5.7 MB APK, 65 Kotlin tests and 22 Python tests pass.
 
 **Nothing is pushed yet.** `dev-sam` is local-only.
 
@@ -24,6 +26,17 @@
 One-time setup on a fresh machine is documented at the top of `android/env.sh`.
 
 ## Log
+
+### 2026-09-18 — Steps 2–5 complete: the APK builds and the engine is real
+
+`./gradlew :app:assembleDebug` → **app-debug.apk, 5.7 MB**. `:app:testDebugUnitTest` → **65 tests, 0 failures**. Python still 22/22.
+
+- **Resources + manifest** (`5bc0883`): the three AAPT2 blockers fixed, plus two bugs that only bite at runtime — the missing `PROPERTY_SPECIAL_USE_FGS_SUBTYPE` (guaranteed `MissingForegroundServiceTypeException` on first overlay use) and the undeclared `POST_NOTIFICATIONS`.
+- **Kotlin engine** (`a28a1e2`): `io.agents.anima.engine` — SQLite skill store, weighted matcher, a from-scratch `difflib.SequenceMatcher` port, replay loop with drift healing and the biometric guard before every autonomous tap. `TaskerReceiver` now broadcasts the engine's real numbers instead of `val success = true`.
+- **Cross-runtime test** (`ca44399`): `skills_from_python.json` is a genuine `SkillDB.export_json()` output; the Kotlin test imports it and asserts the locator scores match anima.py to ten decimals. Divergence between the runtimes now fails a test.
+- **MainActivity** (`942ef78`): permission gate with deep links and live status, goal runner, 3-act demo with a streamed scoreboard.
+
+**No network code and no INTERNET permission anywhere in the app** — worth saying out loud in the pitch, because it means the APK *cannot* phone home, enforced by the manifest rather than by promise.
 
 ### 2026-09-17 — Step 1 + Step 2 scaffolding
 
