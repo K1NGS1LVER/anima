@@ -1,7 +1,13 @@
-.PHONY: test demo benchmark clean install
+.PHONY: test e2e test-all demo benchmark clean install
 
 test:
 	python3 -m unittest test_anima.py
+
+e2e:
+	python3 -m unittest test_e2e.py
+
+test-all:
+	python3 -m unittest discover -p "test_*.py"
 
 demo:
 	@echo "==> Running Cold Compilation Run..."

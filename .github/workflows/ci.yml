@@ -25,6 +25,10 @@ jobs:
       run: |
         python -m unittest test_anima.py
 
+    - name: Run End-to-End Test Suite (Stdlib)
+      run: |
+        python -m unittest test_e2e.py
+
     - name: Run CLI Dual-Mode Smoke Test
       run: |
         python anima.py "toggle wifi" --mock

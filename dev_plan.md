@@ -208,29 +208,25 @@ Position Anima **not** as another generic conversational chat wrapper, but as an
 | **Phase 4** | **Page Transition Graph (PTG) & Visual Dashboard** | ✅ **COMPLETED** | Live interactive visualization mapping screen transitions, extracting design tokens, and streaming a real-time token savings scoreboard for hackathon demos (`--ptg`). |
 | **Phase 5** | **Native Android APK Daemon & Service Harness** | ✅ **COMPLETED** | Native Kotlin `AccessibilityService` listener, Gemini-style ambient edge-glow border + frosted bottom island HUD with emergency kill-switch (`SYSTEM_ALERT_WINDOW`), `ForegroundService`, and Tasker/MacroDroid Intent API (`io.agents.anima.RUN_TASK`). |
 | **Phase 6** | **On-Device LiteRT-LM Local Inference & Packaging** | ✅ **COMPLETED** | `LocalLiteRTPlanner` for quantized Gemma 4 / LiteRT-LM inference via local HTTP/socket, 100% offline privacy, `--local` CLI flag, and standalone Gradle build setup (`build.gradle.kts`, `settings.gradle.kts`). |
+| **Phase 7** | **End-to-End Verification & Multi-Screen Flow Validation** | ✅ **COMPLETED** | 5 realistic E2E journey scenarios (`test_e2e.py`), stateful multi-screen device emulation, form input slot substitution, mid-flight popup auto-recovery, and CLI subprocess verification. |
 
 ---
 
 ### Detailed Stage Breakdown
 
 #### ✅ What Has Been Completed
-1. **Hermetic Test Suite (12/12 Passing in 0.58s):**
-   - `test_uiformer_pruner`: Structural container filtering and >60% payload reduction.
-   - `test_security_rejection`: Hardened parameterized command execution rejecting injection vectors (`shell=False`).
-   - `test_cold_to_warm_autonomous_loop`: Cold planning -> SQLite auto-compilation -> warm 0-LLM replay.
-   - `test_self_healing_drift`: Automatic locator re-grounding and skill repair when UI layouts shift.
-   - `test_visual_fallback`: Screenshot-based visual grounding activation when XML hierarchy is empty.
-   - `test_popup_interception`: System dialog and permission prompt auto-dismissal.
-   - `test_essential_state_progress`: Functional milestone completion verification.
-   - `test_export_import_skills`: Skill library JSON serialization and re-import.
-   - `test_cross_resolution_skill_replay`: Screen resolution invariant relative coordinate mapping.
-   - `test_parameter_slot_skill_replay`: Template parameterization and dynamic substitution.
-   - `test_page_transition_graph`: Live state transition logging and zero-dependency HTML dashboard export.
-   - `test_local_litert_planner`: On-device local quantized model communication, JSON parsing, and offline graceful fallback.
+1. **Hermetic Test Suite (17/17 Total Passing Tests):**
+   - **12 Unit Tests (`test_anima.py` in 0.59s):** UIFormer pruner, security rejection, cold-to-warm loop, self-healing drift, visual fallback, popup interception, milestone progress, skill export/import, cross-resolution replay, dynamic parameter slots, Page Transition Graph, and on-device LiteRT local planner.
+   - **5 End-to-End Tests (`test_e2e.py` in 0.35s):**
+     - `test_e2e_multi_screen_journey`: Stateful multi-screen application navigation (Launcher -> Settings -> Network -> Wi-Fi Toggle) with 0-LLM speculative replay.
+     - `test_e2e_popup_interception_and_recovery`: Mid-flight system permission prompt interception, auto-dismissal, and underlying task completion.
+     - `test_e2e_cli_dual_mode_subprocess`: Subprocess execution of `anima` CLI verifying Cold Compilation -> Warm Replay -> PTG HTML dashboard creation.
+     - `test_e2e_security_injection_protection`: Adversarial shell metacharacter rejection across all system calls (`shell=False`).
+     - `test_e2e_parameter_substitution_form`: Dynamic parameter slot extraction and novel value substitution across form flows.
 2. **Production Repository Ergonomics:**
    - Standard packaging via `pyproject.toml` with console command `anima`.
-   - GitHub Actions CI matrix testing Python 3.10, 3.11, and 3.12 across all pushes and PRs.
-   - Developer task runner (`Makefile`) with `make test`, `make demo`, `make benchmark`.
+   - GitHub Actions CI matrix testing Python 3.10, 3.11, and 3.12 across all pushes and PRs running both unit and E2E suites.
+   - Developer task runner (`Makefile`) with `make test`, `make e2e`, `make test-all`, `make demo`, `make benchmark`.
    - MIT License and `CONTRIBUTING.md`.
 3. **Core Engine Zero-Dependency Philosophy:**
    - Single-file runtime (`anima.py`) operating entirely on Python standard library (`xml.etree.ElementTree`, `sqlite3`, `difflib`, `subprocess`, `urllib`).

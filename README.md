@@ -58,13 +58,18 @@ Built to solve the core architectural bottlenecks of current academic and commer
 
 Anima has **zero third-party dependencies** outside standard Python 3.10+.
 
-### 1. Run Hermetic Unit Tests
+### 1. Run Hermetic Unit & End-to-End Tests
 ```zsh
+# Run fast unit tests (12 tests in ~0.5s):
 make test
-# or
-python3 -m unittest test_anima.py
+
+# Run multi-screen End-to-End journeys (5 scenarios in ~0.3s):
+make e2e
+
+# Run all 17 hermetic tests:
+make test-all
 ```
-*12 hermetic unit tests verifying UIFormer compression, security rejection, cold-to-warm loop, self-healing drift, visual fallback, popup interception, skill export/import, relative screen normalization, dynamic parameter slots, live Page Transition Graph export, and on-device LiteRT-LM model execution.*
+*17 hermetic tests (12 unit + 5 E2E) validating multi-screen navigation, dynamic parameter slots, popup auto-dismissal, UIFormer compression, on-device LiteRT execution, and security injection rejection.*
 
 ### 2. Live Dual-Mode Demonstration & PTG Dashboard (The Hackathon Demo)
 ```zsh
