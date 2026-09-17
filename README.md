@@ -60,16 +60,16 @@ Anima has **zero third-party dependencies** outside standard Python 3.10+.
 
 ### 1. Run Hermetic Unit & End-to-End Tests
 ```zsh
-# Run fast unit tests (12 tests in ~0.5s):
+# Run fast unit tests (16 tests in ~0.6s):
 make test
 
-# Run multi-screen End-to-End journeys (5 scenarios in ~0.3s):
+# Run multi-screen End-to-End journeys (6 scenarios in ~1.7s):
 make e2e
 
-# Run all 17 hermetic tests:
+# Run all 22 hermetic tests:
 make test-all
 ```
-*17 hermetic tests (12 unit + 5 E2E) validating multi-screen navigation, dynamic parameter slots, popup auto-dismissal, UIFormer compression, on-device LiteRT execution, and security injection rejection.*
+*22 hermetic tests (16 unit + 6 E2E) validating multi-screen navigation, dynamic parameter slots, popup auto-dismissal, UIFormer compression, on-device LiteRT execution, and security injection rejection.*
 
 ### 2. The Hackathon Demo — One Command
 ```zsh
@@ -103,6 +103,31 @@ python3 anima.py "toggle wifi" --mock --local
 
 *(Optional: Set `export GEMINI_API_KEY="your-key"` to enable cloud VLM multimodal reasoning over the REST API).*
 
+### 5. Build & Install the Android Daemon APK
+The phone-resident app runs the same engine on-device, with **no network calls at all**.
+
+```zsh
+# One-time toolchain setup (macOS) -- see android/README.md for the full walkthrough:
+brew install openjdk@17 gradle
+brew install --cask android-commandlinetools android-platform-tools
+yes | sdkmanager --licenses
+sdkmanager --install "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+
+make apk           # -> android/app/build/outputs/apk/debug/app-debug.apk
+make apk-install   # installs to the connected phone
+make android-test  # hermetic JVM engine tests, no device needed
+```
+
+Open **Anima** on the phone: it walks you through the two permission grants, then **RUN 3-ACT DEMO** plays Cold → Warm → Chaos on-screen with a live scoreboard. That demo needs no target app, no network and no permissions, by design.
+
+Drive it from a laptop over the Tasker/MacroDroid intent API:
+```zsh
+adb shell am broadcast -a io.agents.anima.RUN_TASK --es goal "toggle wifi"
+```
+Anima broadcasts `io.agents.anima.TASK_COMPLETED` carrying the engine's real `success`, `latency_ms` and `llm_calls` — `0` on a replayed skill.
+
+CI builds the APK on every push and uploads it as an artifact, so you can grab a build without any local Android toolchain.
+
 ---
 
 ## 📊 Benchmark Comparison
@@ -122,12 +147,20 @@ python3 anima.py "toggle wifi" --mock --local
 
 ```
 anima/
-├── .github/workflows/ci.yml # Automated CI matrix (Python 3.10, 3.11, 3.12)
-├── android/                 # Native Android APK Daemon & Service Harness
-│   ├── AndroidManifest.xml  # Accessibility service & intent declarations
-│   ├── res/xml/             # Accessibility service configuration
-│   └── src/                 # Kotlin AccessibilityService, FloatingOverlay, & TaskerReceiver
-├── anima.py                 # Unified mobile GUI runtime (~1000 LOC, pure stdlib)
+├── .github/workflows/ci.yml # CI: Python matrix (3.10-3.12) + Android APK build
+├── android/                 # Native Android daemon -- standard Gradle project
+│   ├── env.sh               # One-source toolchain setup (JDK 17 pin, SDK paths)
+│   ├── gradlew              # Committed wrapper, pinned to Gradle 8.9
+│   └── app/src/main/
+│       ├── AndroidManifest.xml
+│       ├── res/             # Vector icons, dark theme, layouts, service config
+│       └── kotlin/io/agents/anima/
+│           ├── MainActivity.kt              # Permission gate, goal runner, 3-act demo
+│           ├── AnimaAccessibilityService.kt # UI capture, gestures, emergency halt
+│           ├── FloatingOverlayService.kt    # Edge-glow + island HUD + kill-switch
+│           ├── TaskerReceiver.kt            # io.agents.anima.RUN_TASK intent API
+│           └── engine/                      # On-device skill engine (port of anima.py)
+├── anima.py                 # Unified mobile GUI runtime (~1400 LOC, pure stdlib)
 │   ├── Device               # Parameterized ADB & Mock controller
 │   ├── UIFormer             # DSL structural tree pruner
 │   ├── SkillDB              # SQLite skill storage & JSON export/import
@@ -136,12 +169,16 @@ anima/
 │   ├── Interceptors         # Popup Interceptor & Essential-State Verifier
 │   ├── PageTransitionGraph  # State hashing & interactive HTML dashboard
 │   └── AnimaRuntime         # Dual-mode execution engine & benchmark harness
-├── test_anima.py            # Hermetic 11-test validation suite
+├── test_anima.py            # Hermetic unit validation suite
+├── test_e2e.py              # Multi-screen end-to-end journeys
 ├── pyproject.toml           # Packaging metadata & console entrypoint (`anima`)
-├── Makefile                 # Developer task runner (`make test`, `make demo`)
+├── Makefile                 # Task runner (`make test`, `make demo`, `make apk`)
+├── dev_plan.md              # Master engineering plan & single source of truth (SSOT)
+├── PLAN.md                  # Current phase plan & decisions
+├── CHECKLIST.md             # Task status, each tied to a verification command
+├── CURRENT_PROGRESS.md      # Running log & environment state for contributors
 ├── CONTRIBUTING.md          # Contribution guidelines
 ├── LICENSE                  # MIT License
-├── dev_plan.md              # Master engineering plan & single source of truth (SSOT)
 └── README.md                # Project documentation
 ```
 
