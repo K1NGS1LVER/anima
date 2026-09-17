@@ -2,10 +2,14 @@ package io.agents.anima
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
+import android.content.Context
 import android.content.Intent
 import android.graphics.Path
 import android.graphics.Rect
+import android.os.Build
 import android.os.Bundle
+import android.os.VibrationEffect
+import android.os.Vibrator
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
@@ -43,12 +47,15 @@ class AnimaAccessibilityService : AccessibilityService() {
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
-        
+
         // Auto-dismiss known transient system popups or permissions if flagged
         if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
             val pkg = event.packageName?.toString() ?: ""
             if (pkg.contains("com.android.permissioncontroller") || pkg.contains("packageinstaller")) {
                 handlePermissionDialog(event)
+            }
+            if (isBiometricPromptVisible()) {
+                biometricHalt()
             }
         }
     }
@@ -66,6 +73,41 @@ class AnimaAccessibilityService : AccessibilityService() {
         isExecuting.set(false)
         FloatingOverlayService.releaseControlToUser("EMERGENCY HALT TRIGGERED")
         Log.w(TAG, "EMERGENCY HALT TRIGGERED: Active automation stopped.")
+    }
+
+    /**
+     * Biometric & Session-Expiry HITL (dev_plan §7.D): pauses the agent when a
+     * biometric prompt (fingerprint / face) appears, vibrates a gentle chime,
+     * and yields control to the user for authentication.
+     */
+    private fun isBiometricPromptVisible(): Boolean {
+        val root = rootInActiveWindow ?: return false
+        val markers = listOf(
+            "com.android.systemui:id/biometric_prompt",
+            "biometric",
+            "fingerprint",
+            "Confirm your pattern"
+        )
+        val visibleText = root.text?.toString()?.orEmpty() + root.contentDescription?.toString().orEmpty()
+        return markers.any { visibleText.contains(it, ignoreCase = true) }
+    }
+
+    fun biometricHalt() {
+        if (!shouldHalt.get()) {
+            shouldHalt.set(true)
+            isExecuting.set(false)
+            // Gentle haptic pulse to request user authentication
+            (getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator)?.let { v ->
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    v.vibrate(VibrationEffect.createOneShot(250, VibrationEffect.DEFAULT_AMPLITUDE))
+                } else {
+                    @Suppress("DEPRECATION")
+                    v.vibrate(250)
+                }
+            }
+            FloatingOverlayService.releaseControlToUser("BIOMETRIC PROMPT — AUTH REQUIRED")
+            Log.w(TAG, "BIOMETRIC PROMPT DETECTED: Automation paused, user authentication required.")
+        }
     }
 
     /**

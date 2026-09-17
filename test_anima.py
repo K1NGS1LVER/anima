@@ -264,6 +264,51 @@ class TestAnima(unittest.TestCase):
             self.assertIn("⚡️ Anima Page Transition Graph (PTG)", content)
             self.assertIn("Token Savings vs Baseline", content)
 
+    def test_biometric_hitl_guard(self):
+        """Closes blind spot §7.D: biometric/session prompts halt automation for user auth."""
+        from anima import BiometricGuard, ExecutionResult
+        biometric_xml = """<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
+<hierarchy rotation="0">
+  <node index="0" class="android.widget.FrameLayout" bounds="[0,0][1080,2400]">
+    <node index="0" class="android.widget.TextView" resource-id="com.android.systemui:id/biometric_prompt" text="Unlock to continue" bounds="[100,800][980,1000]" />
+  </node>
+</hierarchy>
+"""
+        self.assertTrue(BiometricGuard.detect(biometric_xml))
+        self.assertFalse(BiometricGuard.detect(SAMPLE_XML))
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = os.path.join(tmpdir, "bio_skills.db")
+            runtime = AnimaRuntime(db_path=db_path, planner=HeuristicPlanner())
+            dev = MockDevice(biometric_xml)
+
+            res = runtime.run("toggle wifi", dev)
+            self.assertFalse(res.success)
+            self.assertEqual(res.mode, "HITL_PAUSED")
+            self.assertEqual(res.llm_calls, 0)
+            # No autonomous tap was dispatched onto the sensitive screen
+            self.assertEqual(dev.history, [])
+
+    def test_ptg_force_directed_dashboard(self):
+        """Verifies the PTG dashboard ships an interactive D3.js force-directed graph."""
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = os.path.join(tmpdir, "ptgfd.db")
+            html_path = os.path.join(tmpdir, "ptg_fd.html")
+            runtime = AnimaRuntime(db_path=db_path, planner=HeuristicPlanner())
+            dev = MockDevice(SAMPLE_XML)
+
+            runtime.run("toggle wifi", dev)
+            runtime.run("toggle wifi", dev)
+            runtime.export_ptg(html_path)
+
+            with open(html_path, "r", encoding="utf-8") as f:
+                content = f.read()
+            self.assertIn("d3.v7.min.js", content)
+            self.assertIn("forceSimulation", content)
+            self.assertIn('id="graph"', content)
+
     def test_local_litert_planner(self):
         """Verifies on-device LocalLiteRTPlanner parsing and offline fallback compilation."""
         import http.server
