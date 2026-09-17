@@ -3,7 +3,7 @@
 > **Document Classification:** Internal Technical Blueprint & Developer Roadmap  
 > **Target Platform:** Android (Native APK / Embedded SDK) + Host-Tethered Python Runtime  
 > **Audience:** Core Engineering Contributors, AI Researchers, and Hackathon Collaborators  
-> **Status:** Active Execution (Phase 1 & 2 Complete)
+> **Status:** ✅ Phases 1–7 Complete — All Core Architecture Delivered. Phase 8 (Polish & Demo) In Backlog.
 
 ---
 
@@ -239,3 +239,78 @@ Position Anima **not** as another generic conversational chat wrapper, but as an
 6. **On-Device Local Inference & Android Packaging (`android/`):**
    - `LocalLiteRTPlanner` with `--local` and `--local-url` for quantized model inference (Gemma 4-bit via LiteRT-LM).
    - Gradle build scripts (`build.gradle.kts`, `settings.gradle.kts`, `gradle.properties`) for standalone APK compilation and deployment.
+7. **End-to-End Verification & Multi-Screen Flow Validation:**
+   - `test_e2e.py` — 5 comprehensive scenarios using `StatefulMockDevice` (no emulator required):
+     1. `test_e2e_multi_screen_journey` — Launcher→Settings→Network→Wi-Fi toggle; cold compile + 0-LLM warm replay.
+     2. `test_e2e_popup_interception_and_recovery` — mid-flight permission dialog auto-dismissed, task still completes.
+     3. `test_e2e_cli_dual_mode_subprocess` — real subprocess; verifies exit code, COLD_COMPILED→WARM_REPLAY, PTG HTML created.
+     4. `test_e2e_security_injection_protection` — adversarial shell metacharacters rejected by `ADBDevice._run()`.
+     5. `test_e2e_parameter_substitution_form` — `FormInputPlanner`, `{time}` slot extraction, novel value substitution, 0-LLM replay.
+   - `Makefile` updated: `make e2e`, `make test-all` (`discover -p "test_*.py"`).
+   - `.github/workflows/ci.yml` updated: `test_e2e.py` added to CI pipeline.
+   - **17 tests total (12 unit + 5 E2E) all passing in < 1 second.**
+
+---
+
+## 10. Phase 8 — Polish, Demo & Hackathon Readiness (BACKLOG)
+
+The following items are approved backlog candidates for Phase 8. Each must be implemented as **atomic, incremental commits** (one logical unit per commit).
+
+| Priority | Item | Description |
+| :--- | :--- | :--- |
+| 🔴 **P0** | **Live Hackathon Demo Script** | `make demo` runs a fully staged 3-act presentation: (1) Cold Run with UIFormer compression stats, (2) Warm Replay at 0-LLM/~0.001s, (3) Self-Healing Chaos Test with drift injection. Rich CLI output with timing + token savings scoreboard. |
+| 🟠 **P1** | **Biometric & Session-Expiry HITL** | Detects `com.android.systemui:id/biometric_prompt` mid-task via `AnimaAccessibilityService`. Pauses automation, rings haptic chime, yields control to user, then resumes on re-focus. Closes blind spot documented in §7.D. |
+| 🟡 **P2** | **PTG Force-Directed Interactive Graph** | Upgrade `ptg_dashboard.html` from static edge list to a D3.js force-directed graph for a dramatically more impressive demo visual. Zero new Python dependencies — JS only. |
+| 🟡 **P2** | **Skill Library Import/Export CLI** | `anima export-skills skills.json` / `anima import-skills skills.json` for sharing compiled skill packs across teams. Enables hackathon story around community skill sharing. |
+
+---
+
+## 11. Architectural Decisions Log (Session-Recorded)
+
+This section records key design decisions made during development sessions so future contributors understand the reasoning.
+
+### 11.1 iOS Support — Explicitly Deferred
+- **Decision:** iOS support is **deferred indefinitely** and not on the roadmap.
+- **Reason:** Android's open `AccessibilityService` API, `adb`, `UiAutomator2`, and `WindowManager` overlay system have no direct iOS equivalent. iOS automation requires `XCUITest` (requires macOS + Xcode), `WebDriverAgent`, or private entitlements — all far outside the hackathon scope.
+- **If revisited:** Would require a completely separate native layer (Swift/ObjC) and Apple Developer Program access.
+
+### 11.2 Gemini-Inspired Screen Overlay — Approved Architecture
+- **Decision:** Adopted the **dual-layer Google Gemini overlay** paradigm as the primary "agent-in-control" UX signal.
+- **Rationale:** The Google Gemini / Circle-to-Search overlay is a pattern users already understand. Reusing this visual language eliminates the "Ghost in the Machine" panic response when an autonomous agent operates the device without any visible signal.
+- **Implementation:**
+  - Layer 1: `EdgeGlowView` — `FLAG_NOT_TOUCHABLE | FLAG_LAYOUT_NO_LIMITS` full-screen ambient animated gradient border (Cyan→Indigo→Violet, 900ms pulsing). Passes all gestures through.
+  - Layer 2: `BottomIslandCapsule` — frosted slate-900 pill anchored 80dp above navigation bar with live step description, token/cost scoreboard, and a red **"Take Control"** HITL kill-switch.
+- **Rejection of alternatives:** Single toast/snackbar notifications were rejected (too transient, miss ongoing state). Persistent notification was rejected (not visible during full-screen app usage).
+
+### 11.3 Zero External Pip Dependencies (Core Constraint)
+- **Decision:** `anima.py` must remain pure Python standard library with **zero external pip dependencies**.
+- **Allowed stdlib modules:** `xml.etree.ElementTree`, `sqlite3`, `difflib`, `subprocess`, `urllib.request`, `http.server`, `re`, `json`, `dataclasses`, `typing`, `pathlib`.
+- **Rationale:** Maximizes portability, eliminates dependency-hell in CI, keeps the APK daemon's Python bridge footprint minimal, and demonstrates engineering discipline for hackathon judges.
+- **Android layer** (`android/`) uses Kotlin + standard AndroidX — dependencies are acceptable there.
+
+### 11.4 Incremental Commit Policy (Going Forward)
+- **Decision:** All future development uses **atomic, incremental commits** — one logical unit of change per commit.
+- **Format:** `type(scope): description` (conventional commits).
+- **Examples:** `feat(demo): add staged cold/warm/chaos demo script`, `test(demo): add unit test for demo runner`, `docs(dev_plan): update phase 8 status`.
+- **Never** bundle multiple feature additions in a single commit.
+
+### 11.5 Git Signing — Always Use `--no-gpg-sign`
+- **Decision:** All commits in this repo use `git commit --no-gpg-sign`.
+- **Reason:** Global git config has `commit.gpgsign=true` with SSH signing at `/Users/dan/.ssh/id_ed25519_signing.pub`. Background git commits deadlock waiting for SSH passphrase without `--no-gpg-sign`.
+
+---
+
+## 12. Commit History Reference
+
+| Commit | Phase | Description |
+| :--- | :--- | :--- |
+| `427964b` | 1–2 | `feat: complete MVP with visual fallback, popup interceptor, milestone verifier, and benchmark suite` |
+| `62963da` | SSOT | `docs: add comprehensive dev_plan.md architecture blueprint for collaborators` |
+| `d961cbd` | 3 | `feat(coords): add relative screen resolution normalization (0-1000 scale) for cross-device skill replay` |
+| `938db0d` | 3 | `feat(params): add dynamic parameter slot extraction, active weight normalization, and IME keyboard auto-dismissal` |
+| `5ef405c` | SSOT | `docs: update dev_plan.md with completed milestones and next stage status` |
+| `50f6975` | 4 | `feat(ptg): add live Page Transition Graph engine and standalone HTML dashboard` |
+| `7d0755f` | 5 | `feat(android): add phone-resident daemon scaffold and update SSOT roadmap` |
+| `1948127` | 5 | `feat(overlay): implement Google Gemini-style edge-glow and floating bottom island HUD` |
+| `398625d` | 6 | `feat(litert): add on-device local model planner, android gradle build setup, and update SSOT` |
+| `0d1f17f` | 7 | `feat(e2e): add comprehensive 5-scenario end-to-end test suite and CI integration` |
