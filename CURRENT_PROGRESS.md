@@ -5,16 +5,16 @@
 
 ## Where to pick up
 
-**Steps 0–7 are done and verified.** `dev-sam` is pushed, and CI is green on all four jobs — including the Android job, which builds the APK on a clean runner and uploads it as a downloadable artifact.
-
-Phase 9 is verified on hardware: the APK installs on a physical Redmi Note 11 and drives the real Settings UI — `toggle wifi` flipped `wifi_on` 1 → 0, then replayed twice at **0 LLM calls** in 264ms and 687ms.
+**Phase 9 is complete and verified on hardware.** `dev-sam` is pushed, CI is green, and the APK drives real Settings screens on a physical Redmi Note 11.
 
 **Next actions, in order:**
-1. Exercise the edge-glow overlay and the "Take Control" kill-switch by hand — the only untested device path, and it needs human eyes on the screen.
-2. Open a PR from `dev-sam` into `main` when the team is ready to merge.
-3. Optional: the host↔phone bridge (`anima.py --android`). The JSON skill format is already compatible, so this is small.
+1. Exercise the edge-glow overlay and the "Take Control" kill-switch by hand — still the only untested device path, and it needs human eyes on the screen.
+2. Open a PR from `dev-sam` into `main` when the team is ready.
+3. Consider extending `IntentRouter` beyond system settings (third-party app launch by label) — the same fast-path idea, wider reach.
 
 **Grab a build without a toolchain:** `gh run download --branch dev-sam --name anima-debug-apk`.
+
+**Demo tip:** run the two goals back to back — "turn on bluetooth" then "toggle wifi". That sequence is what exposed the wrong-screen bug, and it is now the strongest live proof that the agent knows which screen it is on.
 
 ## Environment (reproduce with `source android/env.sh`)
 
@@ -31,6 +31,16 @@ Phase 9 is verified on hardware: the APK installs on a physical Redmi Note 11 an
 One-time setup on a fresh machine is documented at the top of `android/env.sh`.
 
 ## Log
+
+### 2026-09-18 — Two bugs the hermetic suite could never have caught
+
+**"Run a goal" did nothing useful** (`7fbd6ec`). The agent acts on the foreground screen, and pressing RUN leaves *Anima* in the foreground: the taps landed on Anima's own goal input field, whose text is — of course — the best keyword match for the goal the user just typed. Fixed by excluding Anima's own windows from capture, and by finally implementing the Layer 1 deterministic fast-path `dev_plan` §2 has described since the first draft: a goal naming a system setting launches that settings screen first. `turn on bluetooth` / `turn off bluetooth` now work from inside the app.
+
+**A skill fired on the wrong app's screen** (`ee26fc1`) — worse, because it *succeeded*. The `toggle wifi` skill replayed while the Bluetooth page was open and turned Bluetooth off, reporting `success=true llmCalls=0`. MIUI's toggle row has no id, text or content-desc, so the locator held only class + position, and active-weight renormalization rescaled that to a perfect 1.0 against any same-shaped row anywhere. Fixed with label inheritance, a contradiction veto, and a specificity tie-break; see `dev_plan` §13.7.
+
+Verified on the device, the exact sequence that used to misfire: with the Bluetooth page open and bt=1, `toggle wifi` routed to Wi-Fi settings, flipped wifi 1 → 0, and **left Bluetooth alone**. On the wrong screen the planner now declines rather than tapping something plausible.
+
+Python 25/25, Kotlin 76/76.
 
 ### 2026-09-18 — `dev-sam` pushed, CI green end to end
 

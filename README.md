@@ -60,16 +60,16 @@ Anima has **zero third-party dependencies** outside standard Python 3.10+.
 
 ### 1. Run Hermetic Unit & End-to-End Tests
 ```zsh
-# Run fast unit tests (18 tests in ~0.6s):
+# Run fast unit tests (19 tests in ~0.6s):
 make test
 
 # Run multi-screen End-to-End journeys (6 scenarios in ~1.7s):
 make e2e
 
-# Run all 24 hermetic tests:
+# Run all 25 hermetic tests:
 make test-all
 ```
-*24 hermetic Python tests (18 unit + 6 E2E), plus 72 Kotlin engine tests, validating multi-screen navigation, dynamic parameter slots, popup auto-dismissal, UIFormer compression, on-device LiteRT execution, and security injection rejection.*
+*25 hermetic Python tests (19 unit + 6 E2E), plus 76 Kotlin engine tests, validating multi-screen navigation, dynamic parameter slots, popup auto-dismissal, UIFormer compression, on-device LiteRT execution, and security injection rejection.*
 
 ### 2. The Hackathon Demo — One Command
 ```zsh
@@ -119,6 +119,8 @@ make android-test  # hermetic JVM engine tests, no device needed
 ```
 
 Open **Anima** on the phone: it walks you through the two permission grants, then **RUN 3-ACT DEMO** plays Cold → Warm → Chaos on-screen with a live scoreboard. That demo needs no target app, no network and no permissions, by design.
+
+**Run a goal against a real app.** Type a goal like `turn on bluetooth` and hit RUN. Anima routes to the settings screen that owns the setting (Layer 1's deterministic fast-path, 0 LLM calls), reads the live accessibility tree, and taps. Run the same goal again and it replays from the compiled skill at **0 LLM calls**. Anima never drives its own UI, and a skill compiled on one screen will not fire on a lookalike row in another app.
 
 Drive it from a laptop over the Tasker/MacroDroid intent API (the component
 target is required — Android 8+ drops implicit broadcasts to manifest receivers):

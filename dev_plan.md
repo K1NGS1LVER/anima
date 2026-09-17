@@ -416,3 +416,27 @@ Documentation carried its own bug: the `RUN_TASK` broadcast published in `androi
 `dev-sam` is pushed and the workflow runs four jobs on every push: the Python suite on 3.10/3.11/3.12, and an Android job that runs the JVM engine tests, assembles the debug APK and uploads it as a build artifact. Anyone on the team can pull a current build with `gh run download --branch dev-sam --name anima-debug-apk`, without installing a single Android tool.
 
 The Android job earned its place immediately by failing on its first run: `android-actions/setup-android@v3` defaults to installing `tools platform-tools`, and the `tools` package was retired from the SDK repository, so the step exited 1 before Gradle ever started. The workflow now names the packages the build actually needs, matching `android/env.sh`. A module that had gone three phases without compiling now cannot regress silently.
+
+### 13.7 The Wrong-Screen Bug (and why active-weight renormalization is dangerous)
+
+The single worst defect found in Phase 9 did not fail loudly — it succeeded incorrectly. A compiled `toggle wifi` skill, replayed while the Bluetooth settings screen happened to be in front, turned **Bluetooth** off and reported `WARM_REPLAY success=true llmCalls=0`.
+
+**Root cause.** MIUI's toggle row carries no resource-id, no text and no content-desc of its own — the label lives on an inert child. The compiled locator therefore held only a class name and a normalized position. `Matcher.score` divides by `active_weight`, the sum of the weights of the attributes that are actually populated, which is what makes a locator with a single strong attribute score 1.0. The same arithmetic turns *"I know nothing but the shape"* into a confident 1.0 against any `LinearLayout` at the same coordinates, on any screen, in any app:
+
+```python
+Matcher.score(wifi_row_locator, bluetooth_row) == 1.0
+```
+
+**The lesson.** Normalizing confidence by the evidence you happen to have is only sound when the evidence identifies something. Class and position do not. The fix restores identity to the locator rather than weakening the score:
+
+1. **Label inheritance** — a clickable row with no label inherits the label inside it. Containers holding several labels inherit nothing, since a whole-screen container adopting the first text it finds is worse than no label at all.
+2. **Contradiction veto** — a label the locator knows about, contradicted by the label the candidate carries (Gestalt ratio < 0.40), means *different element*, and scores 0. Ordinary wording drift still matches, so self-healing does not fire on every copy change.
+3. **Specificity tie-break** — equal scores resolve to the tighter element, because an inherited label is shared with the container above it.
+
+**Blast radius worth remembering:** an agent that fails visibly costs a retry; an agent that acts confidently on the wrong screen costs trust. Every future locator change should be tested against a same-shaped element on a *different* screen, which is what `WrongScreenGuardTest` and `test_locator_does_not_match_a_lookalike_row_on_another_screen` now pin.
+
+### 13.8 Deterministic-First Routing, Implemented At Last
+
+§2 has described a "Layer 1 fast-path: deterministic system APIs" since the first draft, and nothing implemented it. Typing "turn off bluetooth" into the app's goal box did nothing useful as a direct result: a GUI agent acts on what is in front of it, and pressing RUN leaves *Anima* in front. The executed taps landed on Anima's own goal input field — the text the user had just typed being, unsurprisingly, the best keyword match on screen for their own goal.
+
+`IntentRouter` now maps a goal naming a system setting to the settings screen that owns it, launches it with `CLEAR_TOP` (Settings is a single task, so back-to-back goals would otherwise re-show the previous page), waits for it to render, and only then hands over to the perception loop. Zero LLM calls. Anima's own windows are also excluded from capture outright — the agent must never drive its own UI.

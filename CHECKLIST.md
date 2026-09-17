@@ -13,7 +13,7 @@ Run `source android/env.sh` before any Gradle or ADB command below.
 - [x] `BiometricGuard` markers reachable (case bug) — `make test-all`
 - [x] PTG records real post-action state instead of self-loops — `make test-all`
 - [x] Documented locator weights reconciled with `Matcher.WEIGHTS` — `grep res_id dev_plan.md`
-- [x] No Python regressions — `make test-all` → 22 tests, OK
+- [x] No Python regressions — `make test-all` → 25 tests, OK
 
 ## Step 1 — Toolchain
 
@@ -57,7 +57,7 @@ Run `source android/env.sh` before any Gradle or ADB command below.
 
 ## Step 5 — Tests & CI
 
-- [x] `./gradlew :app:testDebugUnitTest` green — **72 tests, 0 failures, 0 errors**
+- [x] `./gradlew :app:testDebugUnitTest` green — **76 tests, 0 failures, 0 errors**
 - [x] `TextRatio` matches `difflib.SequenceMatcher` on values confirmed against real Python output
 - [x] Matcher: exact-id 1.0, fuzzy desc, spatial falloff, sub-threshold null, first-node-wins ties
 - [x] Cross-runtime: a `skills.json` written by Python imports into the Kotlin store and scores identically
@@ -74,6 +74,9 @@ Run `source android/env.sh` before any Gradle or ADB command below.
 - [x] **Drives the real Settings UI** — `toggle wifi` tapped (540,498) and `wifi_on` went 1 → 0
 - [x] **Warm replay on hardware reports `llmCalls=0`** — 264ms and 687ms across two consecutive runs, each physically flipping Wi-Fi
 - [x] Self-healing verified on a real app — the stale skill drifted, re-grounded and repaired itself in the on-device SQLite
+- [x] **Goal runner works from inside the app** — "turn on bluetooth" bt 0 → 1, "turn off bluetooth" bt 1 → 0, routed via IntentRouter
+- [x] **Agent never drives its own UI** — Anima's own windows excluded from capture
+- [x] **No cross-screen misfires** — with the Bluetooth page open, `toggle wifi` routes to Wi-Fi, flips wifi and leaves Bluetooth alone
 - [ ] Edge-glow overlay + "Take Control" kill-switch exercised by hand ← only remaining device item
 
 ## Step 7 — Ship
