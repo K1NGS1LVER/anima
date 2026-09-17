@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Base slate scale (matches FloatingOverlayService's frosted slate-900 capsule) -->
+    <color name="slate_950">#FF020617</color>
+    <color name="slate_900">#FF0F172A</color>
+    <color name="slate_900_90">#E60F172A</color>
+    <color name="slate_800">#FF1E293B</color>
+    <color name="slate_700">#FF334155</color>
+    <color name="slate_400">#FF94A3B8</color>
+    <color name="slate_300">#FFCBD5E1</color>
+
+    <!-- Brand gradient: cyan -> indigo -> violet, exactly as used in the overlay's edge-glow -->
+    <color name="cyan_400">#FF38BDF8</color>
+    <color name="indigo_500">#FF6366F1</color>
+    <color name="violet_500">#FFA855F7</color>
+
+    <!-- Status colors -->
+    <color name="green_400">#FF4ADE80</color>
+    <color name="red_500">#FFEF4444</color>
+
+    <color name="white">#FFFFFFFF</color>
+</resources>

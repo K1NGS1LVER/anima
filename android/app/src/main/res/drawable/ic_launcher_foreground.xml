@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Adaptive icon foreground: a luminous ring (the same edge-glow motif drawn by
+    FloatingOverlayService.EdgeGlowView) wrapped around a bold "A" for Anima,
+    on a transparent field so the slate-900 adaptive background shows through.
+    108x108dp viewport; content kept inside the 66x66dp safe zone (21..87).
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Outer glow ring: cyan -> indigo -> violet gradient stroke -->
+    <path
+        android:pathData="M54,26 A28,28 0 1,1 53.9,26"
+        android:strokeWidth="6"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000">
+        <aapt:attr name="android:strokeColor">
+            <gradient
+                android:type="sweep"
+                android:centerX="54"
+                android:centerY="54"
+                android:startColor="#38BDF8"
+                android:centerColor="#6366F1"
+                android:endColor="#A855F7" />
+        </aapt:attr>
+    </path>
+
+    <!-- "A" glyph (evenOdd so the crossbar path cuts a real hole) -->
+    <path
+        android:pathData="M54,36 L70,78 L62.5,78 L59.3,69 L48.7,69 L45.5,78 L38,78 Z M54,48.5 L50.6,60 L57.4,60 Z"
+        android:fillType="evenOdd"
+        android:fillColor="#F8FAFC" />
+
+</vector>

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Primary CTA background for the "RUN 3-ACT DEMO" button: cyan-to-violet brand gradient. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <gradient
+        android:type="linear"
+        android:angle="0"
+        android:startColor="@color/cyan_400"
+        android:centerColor="@color/indigo_500"
+        android:endColor="@color/violet_500" />
+    <corners android:radius="16dp" />
+</shape>

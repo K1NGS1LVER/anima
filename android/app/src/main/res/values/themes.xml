@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+
+    <!--
+        Theme.Anima — dark-first brand theme matching FloatingOverlayService's
+        frosted slate-900 HUD with a cyan / indigo / violet accent scheme.
+        Extends Material 3 so MainActivity's Material components (buttons,
+        text fields) pick up the same palette as the overlay.
+    -->
+    <style name="Theme.Anima" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/cyan_400</item>
+        <item name="colorPrimaryVariant">@color/indigo_500</item>
+        <item name="colorOnPrimary">@color/slate_950</item>
+
+        <item name="colorSecondary">@color/violet_500</item>
+        <item name="colorSecondaryVariant">@color/indigo_500</item>
+        <item name="colorOnSecondary">@color/white</item>
+
+        <item name="android:colorBackground">@color/slate_950</item>
+        <item name="colorOnBackground">@color/white</item>
+
+        <item name="colorSurface">@color/slate_900</item>
+        <item name="colorOnSurface">@color/white</item>
+
+        <item name="android:statusBarColor">@color/slate_950</item>
+        <item name="android:navigationBarColor">@color/slate_950</item>
+        <item name="android:windowLightStatusBar" tools:targetApi="m">false</item>
+        <item name="android:windowLightNavigationBar" tools:targetApi="o_mr1">false</item>
+        <item name="android:forceDarkAllowed" tools:targetApi="q">false</item>
+
+        <item name="android:windowBackground">@color/slate_950</item>
+        <item name="android:textColorPrimary">@color/white</item>
+        <item name="android:textColorSecondary">@color/slate_300</item>
+    </style>
+
+</resources>
