@@ -202,5 +202,39 @@ class TestAnima(unittest.TestCase):
             # Center of [1173,573][1360,733] is (1266, 653)
             self.assertEqual(dev_1440.history[-1], ("tap", (1266, 653)))
 
+    def test_parameter_slot_skill_replay(self):
+        """Verifies dynamic slot extraction: 'set alarm for 07:30' compiles a template
+        that replays 'set alarm for 09:15' injecting '09:15' with 0 LLM calls."""
+        import re
+        from anima import BasePlanner
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = os.path.join(tmpdir, "param_skills.db")
+
+            class CustomInputPlanner(BasePlanner):
+                def plan_step(self, goal, dom_json, nodes):
+                    m = re.search(r"\b\d{1,2}:\d{2}\b", goal)
+                    val = m.group(0) if m else "12:00"
+                    return "input_text", nodes[0], val
+                def plan_visual(self, goal, screenshot):
+                    return None
+
+            runtime = AnimaRuntime(db_path=db_path, planner=CustomInputPlanner())
+            dev = MockDevice(SAMPLE_XML)
+
+            # Cold run: compiles to "set alarm for {time}"
+            cold_res = runtime.run("set alarm for 07:30", dev)
+            self.assertTrue(cold_res.success)
+            self.assertEqual(dev.history[-2], ("input_text", "07:30"))
+            self.assertEqual(dev.history[-1], ("key", 4))  # IME soft keyboard dismissed
+
+            # Warm run with novel time: "09:15"
+            warm_res = runtime.run("set alarm for 09:15", dev)
+            self.assertTrue(warm_res.success)
+            self.assertEqual(warm_res.mode, "WARM_REPLAY")
+            self.assertEqual(warm_res.llm_calls, 0)
+            self.assertEqual(dev.history[-2], ("input_text", "09:15"))
+            self.assertEqual(dev.history[-1], ("key", 4))
+
 if __name__ == "__main__":
     unittest.main()

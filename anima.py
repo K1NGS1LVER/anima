@@ -283,32 +283,49 @@ class Skill:
     failure_count: int = 0
 
 class Matcher:
-    """Computes weighted multi-attribute score (SkillDroid weights + relative spatial invariance)."""
+    """Computes weighted multi-attribute score normalized by active locator attributes."""
     WEIGHTS = {"res": 0.35, "desc": 0.25, "text": 0.20, "cls": 0.10, "bounds": 0.10}
 
     @classmethod
     def score(cls, loc: Locator, node: PrunedNode) -> float:
         score = 0.0
-        if loc.resource_id and loc.resource_id == node.resource_id:
-            score += cls.WEIGHTS["res"]
-        if loc.content_desc and node.content_desc:
-            score += SequenceMatcher(None, loc.content_desc.lower(), node.content_desc.lower()).ratio() * cls.WEIGHTS["desc"]
-        if loc.text and node.text:
-            score += SequenceMatcher(None, loc.text.lower(), node.text.lower()).ratio() * cls.WEIGHTS["text"]
-        if loc.class_name and loc.class_name.lower() in node.class_name.lower():
-            score += cls.WEIGHTS["cls"]
+        active_weight = 0.0
+
+        if loc.resource_id:
+            active_weight += cls.WEIGHTS["res"]
+            if loc.resource_id == node.resource_id:
+                score += cls.WEIGHTS["res"]
+
+        if loc.content_desc:
+            active_weight += cls.WEIGHTS["desc"]
+            if node.content_desc:
+                score += SequenceMatcher(None, loc.content_desc.lower(), node.content_desc.lower()).ratio() * cls.WEIGHTS["desc"]
+
+        if loc.text:
+            active_weight += cls.WEIGHTS["text"]
+            if node.text:
+                score += SequenceMatcher(None, loc.text.lower(), node.text.lower()).ratio() * cls.WEIGHTS["text"]
+
+        if loc.class_name:
+            active_weight += cls.WEIGHTS["cls"]
+            if loc.class_name.lower() in node.class_name.lower():
+                score += cls.WEIGHTS["cls"]
 
         # Relative spatial matching: invariant across phone resolutions (1080p vs 1440p)
-        if loc.rel_center and node.rel_center:
-            dist = ((loc.rel_center[0] - node.rel_center[0]) ** 2 + (loc.rel_center[1] - node.rel_center[1]) ** 2) ** 0.5
-            if dist <= 0.05:
+        if loc.rel_center:
+            active_weight += cls.WEIGHTS["bounds"]
+            if node.rel_center:
+                dist = ((loc.rel_center[0] - node.rel_center[0]) ** 2 + (loc.rel_center[1] - node.rel_center[1]) ** 2) ** 0.5
+                if dist <= 0.05:
+                    score += cls.WEIGHTS["bounds"]
+                elif dist <= 0.15:
+                    score += (1.0 - dist / 0.15) * cls.WEIGHTS["bounds"]
+        elif loc.bounds:
+            active_weight += cls.WEIGHTS["bounds"]
+            if loc.bounds == node.bounds:
                 score += cls.WEIGHTS["bounds"]
-            elif dist <= 0.15:
-                score += (1.0 - dist / 0.15) * cls.WEIGHTS["bounds"]
-        elif loc.bounds and loc.bounds == node.bounds:
-            score += cls.WEIGHTS["bounds"]
 
-        return score
+        return (score / active_weight) if active_weight > 0.0 else 0.0
 
     @classmethod
     def find_best(cls, loc: Locator, nodes: List[PrunedNode], threshold: float = 0.50) -> Optional[PrunedNode]:
@@ -372,6 +389,35 @@ class SkillDB:
         ]
         return Skill(intent=intent, steps=steps, success_count=succ, failure_count=fail)
 
+    def find_match(self, user_goal: str) -> Tuple[Optional[Skill], Dict[str, str]]:
+        """Finds exact skill match or parameter-slot template match (e.g. 'set alarm for {time}')."""
+        clean_goal = user_goal.strip().lower()
+        exact = self.get(clean_goal)
+        if exact:
+            return exact, {}
+
+        cur = self.conn.cursor()
+        cur.execute("SELECT intent, steps_json, success_count, failure_count FROM skills WHERE intent LIKE '%{%}%'")
+        for row in cur.fetchall():
+            template_intent, steps_json, succ, fail = row
+            pattern = re.escape(template_intent)
+            pattern = re.sub(r"\\\{([a-zA-Z_]+)\\\}", r"(?P<\1>.+?)", pattern)
+            m = re.fullmatch(f"^{pattern}$", clean_goal)
+            if m:
+                extracted = m.groupdict()
+                raw_steps = json.loads(steps_json)
+                steps = [
+                    Step(
+                        action=s["action"],
+                        locator=Locator(**s["locator"]),
+                        param_slot=s.get("param_slot"),
+                        value=s.get("value")
+                    )
+                    for s in raw_steps
+                ]
+                return Skill(intent=template_intent, steps=steps, success_count=succ, failure_count=fail), extracted
+        return None, {}
+
     def export_json(self, path: str) -> int:
         cur = self.conn.cursor()
         cur.execute("SELECT intent, steps_json, success_count, failure_count FROM skills")
@@ -400,6 +446,32 @@ class SkillDB:
             self.save(Skill(intent=item["intent"], steps=steps, success_count=item.get("success", 0)))
             count += 1
         return count
+
+class ParameterExtractor:
+    """Extracts dynamic parameter slots from goals and action values."""
+    SLOT_PATTERNS = [
+        (r"\b(\d{1,2}:\d{2}(?:\s*[ap]m)?)\b", "time"),
+        (r"\b([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)\b", "email"),
+        (r"\b(\d{3,})\b", "number"),
+    ]
+
+    @classmethod
+    def parameterize_goal(cls, goal: str, input_value: Optional[str]) -> Tuple[str, Optional[str]]:
+        """If input_value exists in goal, replaces it with {slot_name}."""
+        if not input_value or not input_value.strip():
+            return goal, None
+        
+        val_clean = input_value.strip()
+        if val_clean in goal:
+            slot_name = "value"
+            for pat, name in cls.SLOT_PATTERNS:
+                if re.search(pat, val_clean, re.IGNORECASE):
+                    slot_name = name
+                    break
+            templated = goal.replace(val_clean, f"{{{slot_name}}}")
+            return templated, slot_name
+
+        return goal, None
 
 # ---------------------------------------------------------------------------
 # 5. Planners (Gemini 2.5 Flash REST + Visual Grounder + Heuristic Fallback)
@@ -581,7 +653,8 @@ class AnimaRuntime:
     def run(self, goal: str, device: Device, params: Optional[Dict[str, str]] = None) -> ExecutionResult:
         start_time = time.time()
         screen_size = device.get_screen_size()
-        skill = self.db.get(goal)
+        skill, extracted_params = self.db.find_match(goal)
+        merged_params = {**extracted_params, **(params or {})}
 
         # -------------------------------------------------------------------
         # 1. Warm Path: Speculative Replay with Zero LLM Calls
@@ -623,8 +696,10 @@ class AnimaRuntime:
                 if step.action == "tap":
                     device.tap(target.center[0], target.center[1])
                 elif step.action == "input_text":
-                    val = (params or {}).get(step.param_slot or "", step.value or "")
+                    val = merged_params.get(step.param_slot or "", step.value or "")
                     device.input_text(val)
+                    # IME soft keyboard auto-dismissal to prevent screen occlusion
+                    device.key(4)
                 elif step.action == "key":
                     device.key(int(step.value or 4))
                 executed += 1
@@ -699,16 +774,19 @@ class AnimaRuntime:
             device.tap(target_node.center[0], target_node.center[1])
         elif action == "input_text":
             device.input_text(val or "")
+            device.key(4)  # Hide keyboard
         elif action == "key":
             device.key(int(val or 4))
 
-        # Auto-compile trajectory into SQLite skill for future 0-LLM reuse
+        # Auto-compile trajectory with dynamic parameter slot extraction
+        templated_intent, slot_name = ParameterExtractor.parameterize_goal(goal, val)
         new_skill = Skill(
-            intent=goal,
+            intent=templated_intent,
             steps=[
                 Step(
                     action=action,
                     locator=Locator.from_node(target_node),
+                    param_slot=slot_name,
                     value=val
                 )
             ],
