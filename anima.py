@@ -1283,11 +1283,15 @@ class DemoDevice(Device):
     def dump_screenshot(self) -> bytes:
         return b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR"
 
+    # Switch hit-box for each layout; the drifted build moved it down-left.
+    SWITCH_BOUNDS = {False: (850, 220, 1000, 340), True: (700, 500, 860, 620)}
+
     def tap(self, x: int, y: int) -> None:
         if self.has_popup and 200 <= x <= 880 and 900 <= y <= 1050:
             self.has_popup = False
             return
-        if 850 <= x <= 1000 and 220 <= y <= 340:
+        x1, y1, x2, y2 = self.SWITCH_BOUNDS[self.drift]
+        if x1 <= x <= x2 and y1 <= y <= y2:
             self.wifi_checked = not self.wifi_checked
 
     def input_text(self, text: str) -> None:
