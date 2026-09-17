@@ -62,3 +62,12 @@ cover/
 .vscode/
 *.swp
 *.swo
+
+# Android / Gradle
+.gradle/
+local.properties
+*.apk
+*.aab
+*.keystore
+captures/
+.cxx/
