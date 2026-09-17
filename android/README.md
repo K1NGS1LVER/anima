@@ -43,3 +43,15 @@ Anima broadcasts `io.agents.anima.TASK_COMPLETED` with extras:
 - `success`: `Boolean`
 - `latency_ms`: `Long`
 - `llm_calls`: `Int`
+
+---
+
+## Building the Daemon APK
+
+```bash
+# Build the standalone debug APK:
+gradle assembleDebug
+
+# Or install directly to connected Android device via ADB:
+gradle installDebug
+```

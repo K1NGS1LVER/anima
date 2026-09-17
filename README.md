@@ -64,7 +64,7 @@ make test
 # or
 python3 -m unittest test_anima.py
 ```
-*11 hermetic unit tests verifying UIFormer compression, security rejection, cold-to-warm loop, self-healing drift, visual fallback, popup interception, skill export/import, relative screen normalization, dynamic parameter slots, and live Page Transition Graph export.*
+*12 hermetic unit tests verifying UIFormer compression, security rejection, cold-to-warm loop, self-healing drift, visual fallback, popup interception, skill export/import, relative screen normalization, dynamic parameter slots, live Page Transition Graph export, and on-device LiteRT-LM model execution.*
 
 ### 2. Live Dual-Mode Demonstration & PTG Dashboard (The Hackathon Demo)
 ```zsh
@@ -82,10 +82,13 @@ Compare Anima against stateless LLM agents:
 python3 anima.py --benchmark
 ```
 
-### 4. Connect a Physical Android Phone
-Enable **USB Debugging** in Android Developer Options, connect your device, and run:
+### 4. Connect a Physical Android Phone or On-Device Local Model
 ```zsh
+# Physical Android Phone via ADB:
 python3 anima.py "toggle wifi"
+
+# 100% Offline On-Device Quantized Model (Gemma 4 via LiteRT-LM):
+python3 anima.py "toggle wifi" --mock --local
 ```
 
 *(Optional: Set `export GEMINI_API_KEY="your-key"` to enable cloud VLM multimodal reasoning over the REST API).*

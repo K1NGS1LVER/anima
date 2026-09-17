@@ -601,6 +601,63 @@ class HybridPlanner(BasePlanner):
             return res
         return self.heuristic.plan_visual(goal, screenshot_bytes)
 
+class LocalLiteRTPlanner(BasePlanner):
+    """On-device local model planner communicating with quantized models (e.g. Gemma 4 / LiteRT-LM).
+
+    Dispatches compact UIFormer Agent-DOM JSON to an on-device local HTTP endpoint or Unix socket
+    (default: http://127.0.0.1:8080/v1/chat/completions) ensuring 100% offline, cloud-free privacy.
+    Includes deterministic heuristic fallback when running in offline test or simulation environments.
+    """
+    def __init__(self, endpoint_url: str = "http://127.0.0.1:8080/v1/chat/completions", timeout: float = 3.0):
+        self.endpoint_url = endpoint_url
+        self.timeout = timeout
+        self.heuristic = HeuristicPlanner()
+
+    def plan_step(self, goal: str, dom_json: str, nodes: List[PrunedNode]) -> Optional[Tuple[str, PrunedNode, Optional[str]]]:
+        payload = {
+            "model": "gemma-4-it-q4",
+            "messages": [
+                {
+                    "role": "system",
+                    "content": (
+                        "You are an on-device Android GUI agent. Given the user goal and pruned AgentDOM, "
+                        "return JSON: {\"action\": \"tap|input_text|swipe|key\", \"target_index\": <int>, \"value\": <str or null>}."
+                    )
+                },
+                {
+                    "role": "user",
+                    "content": f"Goal: {goal}\nAgentDOM: {dom_json}"
+                }
+            ],
+            "temperature": 0.0,
+            "max_tokens": 128
+        }
+        try:
+            req = urllib.request.Request(
+                self.endpoint_url,
+                data=json.dumps(payload).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+                method="POST"
+            )
+            with urllib.request.urlopen(req, timeout=self.timeout) as response:
+                res_data = json.loads(response.read().decode("utf-8"))
+                text = res_data["choices"][0]["message"]["content"]
+                clean = re.search(r"\{.*\}", text, re.DOTALL)
+                if clean:
+                    parsed = json.loads(clean.group(0))
+                    idx = int(parsed.get("target_index", 0))
+                    action = parsed.get("action", "tap")
+                    val = parsed.get("value")
+                    if 0 <= idx < len(nodes):
+                        return action, nodes[idx], val
+        except Exception:
+            # Fall back to heuristic planner if local model daemon is offline
+            pass
+        return self.heuristic.plan_step(goal, dom_json, nodes)
+
+    def plan_visual(self, goal: str, screenshot_bytes: bytes) -> Optional[Tuple[str, Tuple[int, int], Optional[str]]]:
+        return self.heuristic.plan_visual(goal, screenshot_bytes)
+
 # ---------------------------------------------------------------------------
 # 6. Safety & Resilience: Popup Interceptor & Essential-State Verifier
 # ---------------------------------------------------------------------------
@@ -1027,6 +1084,8 @@ def main():
     parser.add_argument("--export-skills", help="Export skills database to JSON file")
     parser.add_argument("--import-skills", help="Import skills from JSON file")
     parser.add_argument("--ptg", nargs="?", const="ptg_dashboard.html", help="Export live Page Transition Graph HTML dashboard")
+    parser.add_argument("--local", action="store_true", help="Use on-device LiteRT-LM / quantized local model")
+    parser.add_argument("--local-url", default="http://127.0.0.1:8080/v1/chat/completions", help="Endpoint for on-device local model")
     args = parser.parse_args()
 
     if args.benchmark:
@@ -1045,7 +1104,8 @@ def main():
         return
 
     device = MockDevice(SAMPLE_CLI_XML) if args.mock else ADBDevice()
-    runtime = AnimaRuntime(db_path=args.db)
+    planner = LocalLiteRTPlanner(endpoint_url=args.local_url) if args.local else None
+    runtime = AnimaRuntime(db_path=args.db, planner=planner)
 
     print(f"\n[Goal] '{args.goal}' on {'MockDevice' if args.mock else 'ADBDevice'}")
     res = runtime.run(args.goal, device)

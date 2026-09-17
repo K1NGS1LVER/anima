@@ -10,6 +10,7 @@ from anima import (
     AnimaRuntime,
     EssentialStateVerifier,
     HeuristicPlanner,
+    LocalLiteRTPlanner,
     Locator,
     MockDevice,
     PopupInterceptor,
@@ -262,6 +263,75 @@ class TestAnima(unittest.TestCase):
                 content = f.read()
             self.assertIn("⚡️ Anima Page Transition Graph (PTG)", content)
             self.assertIn("Token Savings vs Baseline", content)
+
+    def test_local_litert_planner(self):
+        """Verifies on-device LocalLiteRTPlanner parsing and offline fallback compilation."""
+        import http.server
+        import json
+        import threading
+
+        # 1. Test with a mock local LiteRT model HTTP server
+        class MockLiteRTHandler(http.server.BaseHTTPRequestHandler):
+            def do_POST(self):
+                content_length = int(self.headers.get("Content-Length", 0))
+                self.rfile.read(content_length)
+                response = {
+                    "choices": [
+                        {
+                            "message": {
+                                "content": json.dumps({"action": "tap", "target_index": 1, "value": None})
+                            }
+                        }
+                    ]
+                }
+                body = json.dumps(response).encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def log_message(self, format, *args):
+                pass  # Silence HTTP server access logs in tests
+
+        server = http.server.HTTPServer(("127.0.0.1", 0), MockLiteRTHandler)
+        port = server.server_port
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+
+        try:
+            with tempfile.TemporaryDirectory() as tmpdir:
+                db_path = os.path.join(tmpdir, "local_skills.db")
+                planner = LocalLiteRTPlanner(endpoint_url=f"http://127.0.0.1:{port}/v1/chat/completions")
+                runtime = AnimaRuntime(db_path=db_path, planner=planner)
+                dev = MockDevice(SAMPLE_XML)
+
+                # Cold execution via on-device mock server
+                res_cold = runtime.run("toggle wifi", dev)
+                self.assertTrue(res_cold.success)
+                self.assertEqual(res_cold.mode, "COLD_COMPILED")
+                self.assertEqual(res_cold.llm_calls, 1)
+
+                # Warm replay with 0 LLM calls
+                res_warm = runtime.run("toggle wifi", dev)
+                self.assertTrue(res_warm.success)
+                self.assertEqual(res_warm.mode, "WARM_REPLAY")
+                self.assertEqual(res_warm.llm_calls, 0)
+        finally:
+            server.shutdown()
+            server.server_close()
+
+        # 2. Test fallback when local model server is completely offline
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = os.path.join(tmpdir, "offline_skills.db")
+            offline_planner = LocalLiteRTPlanner(endpoint_url="http://127.0.0.1:59999/v1/chat/completions", timeout=0.1)
+            runtime = AnimaRuntime(db_path=db_path, planner=offline_planner)
+            dev = MockDevice(SAMPLE_XML)
+
+            # Cold run should not crash, but fallback to heuristic gracefully
+            res_fallback = runtime.run("toggle wifi", dev)
+            self.assertTrue(res_fallback.success)
+            self.assertEqual(res_fallback.mode, "COLD_COMPILED")
 
 if __name__ == "__main__":
     unittest.main()

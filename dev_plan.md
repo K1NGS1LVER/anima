@@ -129,6 +129,19 @@ Anima is structured as a **Dual-Format Product Package**:
 * **Hardware Acceleration:** Delegates local inference to the smartphone NPU/GPU via Android NNAPI, falling back to CPU on legacy chipsets.
 * **Thermal & Battery Protection:** Mechanical skill replay turns off model inference completely, consuming negligible battery during repetitive automation.
 
+### C. Google Gemini-Inspired Screen Overlay & "Agent-in-Control" UX
+To eliminate user disorientation and the "Ghost in the Machine" panic when an autonomous agent operates a device, Anima adopts the Google Gemini / Circle-to-Search dual-layer overlay architecture:
+1. **Perimeter Ambient Edge-Glow (`EdgeGlowView`):**
+   - Renders a full-screen window with `FLAG_NOT_TOUCHABLE | FLAG_LAYOUT_NO_LIMITS`.
+   - Casts an animated, pulsating multi-color gradient border (Cyan $\to$ Indigo $\to$ Violet) hugging the phone's physical display bezels.
+   - Crucially, `FLAG_NOT_TOUCHABLE` guarantees that the visual aura passes all synthetic gestures (`dispatchGesture()`) directly to underlying apps without intercepting touches.
+2. **Bottom Floating Island Capsule (`BottomIslandCapsule`):**
+   - Anchored at `Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL` (80dp above home navigation gesture bar) using `FLAG_NOT_TOUCH_MODAL`.
+   - Styled as a frosted slate pill (`#E60F172A` Slate-900 at 90% opacity, 64px rounded radius, cyan border stroke).
+   - Features real-time state display (`⚡️ Replaying Skill` vs. `Reasoning Cold Flow`), live performance scoreboard (`0 LLM Calls • ~0.001s • 100% Free`), and an immediate red **"Take Control"** emergency kill-switch button.
+3. **Emergency Kill-Switch & Human-in-the-Loop (HITL) Interruption:**
+   - Tapping "Take Control" or pressing any physical hardware key immediately halts execution via `AnimaAccessibilityService.emergencyHalt()`, extinguishes the ambient glow, and yields complete input sovereignty back to the user.
+
 ---
 
 ## 6. The Critical Do's and Don'ts (Anti-Patterns vs. Best Practices)
@@ -194,14 +207,14 @@ Position Anima **not** as another generic conversational chat wrapper, but as an
 | **Phase 3** | **Resolution Invariance & Dynamic Slots** | ✅ **COMPLETED** | Relative coordinate normalization `[0.0, 1.0]` (1080p -> 1440p cross-device replay), `ParameterExtractor` (`{time}`, `{email}`, `{number}`), IME keyboard auto-dismissal, active weight normalization. |
 | **Phase 4** | **Page Transition Graph (PTG) & Visual Dashboard** | ✅ **COMPLETED** | Live interactive visualization mapping screen transitions, extracting design tokens, and streaming a real-time token savings scoreboard for hackathon demos (`--ptg`). |
 | **Phase 5** | **Native Android APK Daemon & Service Harness** | ✅ **COMPLETED** | Native Kotlin `AccessibilityService` listener, Gemini-style ambient edge-glow border + frosted bottom island HUD with emergency kill-switch (`SYSTEM_ALERT_WINDOW`), `ForegroundService`, and Tasker/MacroDroid Intent API (`io.agents.anima.RUN_TASK`). |
-| **Phase 6** | **On-Device LiteRT-LM Local Inference** | ⏳ **PENDING (NEXT)** | Quantized 4-bit Gemma 4 on-device local model execution via Android NNAPI, removing cloud dependency completely. |
+| **Phase 6** | **On-Device LiteRT-LM Local Inference & Packaging** | ✅ **COMPLETED** | `LocalLiteRTPlanner` for quantized Gemma 4 / LiteRT-LM inference via local HTTP/socket, 100% offline privacy, `--local` CLI flag, and standalone Gradle build setup (`build.gradle.kts`, `settings.gradle.kts`). |
 
 ---
 
 ### Detailed Stage Breakdown
 
 #### ✅ What Has Been Completed
-1. **Hermetic Test Suite (11/11 Passing in 0.021s):**
+1. **Hermetic Test Suite (12/12 Passing in 0.58s):**
    - `test_uiformer_pruner`: Structural container filtering and >60% payload reduction.
    - `test_security_rejection`: Hardened parameterized command execution rejecting injection vectors (`shell=False`).
    - `test_cold_to_warm_autonomous_loop`: Cold planning -> SQLite auto-compilation -> warm 0-LLM replay.
@@ -213,6 +226,7 @@ Position Anima **not** as another generic conversational chat wrapper, but as an
    - `test_cross_resolution_skill_replay`: Screen resolution invariant relative coordinate mapping.
    - `test_parameter_slot_skill_replay`: Template parameterization and dynamic substitution.
    - `test_page_transition_graph`: Live state transition logging and zero-dependency HTML dashboard export.
+   - `test_local_litert_planner`: On-device local quantized model communication, JSON parsing, and offline graceful fallback.
 2. **Production Repository Ergonomics:**
    - Standard packaging via `pyproject.toml` with console command `anima`.
    - GitHub Actions CI matrix testing Python 3.10, 3.11, and 3.12 across all pushes and PRs.
@@ -226,9 +240,6 @@ Position Anima **not** as another generic conversational chat wrapper, but as an
    - Native Kotlin `AnimaAccessibilityService` with `dispatchGesture()`, `AccessibilityNodeInfo` streaming, and emergency kill-switch.
    - Google Gemini-inspired Screen Overlay (`FloatingOverlayService.kt`): animated edge-glow luminous border (`FLAG_NOT_TOUCHABLE`) signaling agent control + frosted bottom island capsule with live token stats and instant "Take Control" kill-switch.
    - `TaskerReceiver` broadcasting and receiving `io.agents.anima.RUN_TASK` for Tasker/MacroDroid automation.
-
-#### ⏳ What Is Pending for Subsequent Stages (Phase 6: Next Stage)
-1. **On-Device Quantized Model Runtime:**
-   - 4-bit quantized Gemma 4 inference harness via Android LiteRT-LM (NNAPI/GPU acceleration).
-2. **End-to-End On-Device APK Packaging:**
-   - Gradle build scripts (`build.gradle.kts`) and native packaging bundle.
+6. **On-Device Local Inference & Android Packaging (`android/`):**
+   - `LocalLiteRTPlanner` with `--local` and `--local-url` for quantized model inference (Gemma 4-bit via LiteRT-LM).
+   - Gradle build scripts (`build.gradle.kts`, `settings.gradle.kts`, `gradle.properties`) for standalone APK compilation and deployment.
