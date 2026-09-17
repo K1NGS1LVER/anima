@@ -4,6 +4,8 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.util.Log
+import io.agents.anima.engine.AccessibilityDevice
+import io.agents.anima.engine.AnimaEngine
 import org.json.JSONObject
 
 /**
@@ -27,6 +29,21 @@ class TaskerReceiver : BroadcastReceiver() {
         const val EXTRA_SUCCESS = "success"
         const val EXTRA_LATENCY = "latency_ms"
         const val EXTRA_LLM_CALLS = "llm_calls"
+
+        /**
+         * A receiver instance is recreated for every broadcast, so the engine (and with it the
+         * SQLite skill library) is cached process-wide instead of reopened per task.
+         */
+        @Volatile
+        private var sharedEngine: AnimaEngine? = null
+
+        fun engine(context: Context): AnimaEngine {
+            val existing = sharedEngine
+            if (existing != null) return existing
+            return synchronized(this) {
+                sharedEngine ?: AnimaEngine(context.applicationContext).also { sharedEngine = it }
+            }
+        }
     }
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -71,21 +88,46 @@ class TaskerReceiver : BroadcastReceiver() {
                 AnimaAccessibilityService.isExecuting.set(true)
                 AnimaAccessibilityService.shouldHalt.set(false)
 
-                // Inspect current active window
-                val nodes = service.captureCurrentWindowNodes()
-                Log.d(TAG, "Captured ${nodes.size} UIFormer semantic nodes from window.")
+                // Execute on the real device through the on-device Anima engine:
+                // warm speculative replay when a compiled skill matches, otherwise a cold
+                // heuristic plan that is auto-compiled into the SQLite skill library.
+                // Zero network calls.
+                val device = AccessibilityDevice(service)
+                val result = engine(context).run(goal, device, paramsMap)
 
-                // Simulation / Dispatch hook for on-device skill engine or runtime
-                val success = true
-                val latencyMs = System.currentTimeMillis() - startTime
+                val latencyMs = result.latencyMs
+                Log.i(
+                    TAG,
+                    "Task '$goal' -> ${result.mode} success=${result.success} " +
+                        "steps=${result.stepsExecuted} llmCalls=${result.llmCalls} " +
+                        "latency=${latencyMs}ms :: ${result.message}"
+                )
 
-                FloatingOverlayService.showCompletion(latencyMs = latencyMs, llmCalls = 0)
+                if (result.success) {
+                    FloatingOverlayService.showCompletion(
+                        latencyMs = latencyMs,
+                        llmCalls = result.llmCalls
+                    )
+                } else {
+                    FloatingOverlayService.releaseControlToUser(result.message)
+                }
 
-                broadcastResult(context, success = success, latencyMs = latencyMs, llmCalls = 0)
+                broadcastResult(
+                    context,
+                    success = result.success,
+                    latencyMs = latencyMs,
+                    llmCalls = result.llmCalls,
+                    message = result.message
+                )
             } catch (e: Exception) {
                 Log.e(TAG, "Task execution failed", e)
                 FloatingOverlayService.releaseControlToUser("Error: ${e.message}")
-                broadcastResult(context, success = false, message = e.message)
+                broadcastResult(
+                    context,
+                    success = false,
+                    latencyMs = System.currentTimeMillis() - startTime,
+                    message = e.message
+                )
             } finally {
                 AnimaAccessibilityService.isExecuting.set(false)
             }
