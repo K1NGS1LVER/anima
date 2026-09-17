@@ -50,8 +50,14 @@ jobs:
         distribution: temurin
         java-version: '17'
 
+    # `packages` must be set explicitly: the action's default is
+    # "tools platform-tools", and the obsolete `tools` package no longer exists
+    # in the SDK repository, so the default configuration fails outright with
+    # "Warning: Failed to find package 'tools'".
     - name: Set up Android SDK
       uses: android-actions/setup-android@v3
+      with:
+        packages: 'platform-tools platforms;android-34 build-tools;34.0.0'
 
     - name: Set up Gradle
       uses: gradle/actions/setup-gradle@v4
