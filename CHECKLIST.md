@@ -61,7 +61,7 @@ Run `source android/env.sh` before any Gradle or ADB command below.
 - [x] `TextRatio` matches `difflib.SequenceMatcher` on values confirmed against real Python output
 - [x] Matcher: exact-id 1.0, fuzzy desc, spatial falloff, sub-threshold null, first-node-wins ties
 - [x] Cross-runtime: a `skills.json` written by Python imports into the Kotlin store and scores identically
-- [x] CI `android` job builds the APK and uploads it as an artifact — *written; unverified until the branch is pushed*
+- [x] CI `android` job builds the APK and uploads it as an artifact — **verified green on a clean runner** (2m27s, artifact 4.7 MB); first run failed on the obsolete `tools` SDK package, fixed in `345bb64`
 - [x] `make apk` / `make android-test` shortcuts
 
 ## Step 6 — On-device (Redmi Note 11, MIUI, Android 13 / API 33)
@@ -76,7 +76,14 @@ Run `source android/env.sh` before any Gradle or ADB command below.
 - [x] Self-healing verified on a real app — the stale skill drifted, re-grounded and repaired itself in the on-device SQLite
 - [ ] Edge-glow overlay + "Take Control" kill-switch exercised by hand ← only remaining device item
 
-## Step 7 — Docs
+## Step 7 — Ship
+
+- [x] `dev-sam` pushed to `origin`
+- [x] CI green on all four jobs — `gh run view 35262697144`
+- [x] APK downloadable without a toolchain — `gh run download --branch dev-sam --name anima-debug-apk`
+- [ ] PR opened into `main` ← team's call on timing
+
+## Step 8 — Docs
 
 - [x] `PLAN.md`, `CHECKLIST.md`, `CURRENT_PROGRESS.md` created
 - [x] `dev_plan.md`: Phase 9 row + honest correction of the Phase 5–6 status

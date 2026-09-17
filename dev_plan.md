@@ -398,6 +398,7 @@ The APK was built, installed and exercised on a physical device rather than an e
 | Warm replay on hardware | `llmCalls=0` at 264ms and 687ms, each physically flipping Wi-Fi |
 | Self-healing on a real app | Stale skill drifted, re-grounded, repaired in on-device SQLite |
 | Network isolation | No network code and no `INTERNET` permission anywhere in the app |
+| CI on a clean runner | Android job green in 2m27s, APK uploaded as a 4.7 MB artifact |
 
 Four planner bugs surfaced only on real hardware, none of which any mock fixture could have caught — see §13.5. That is the argument for ecological validity in one paragraph: the fixtures were too tidy.
 
@@ -409,3 +410,9 @@ Four planner bugs surfaced only on real hardware, none of which any mock fixture
 4. **OEMs rename their widgets.** MIUI renders the master switch as a `CheckBox` with no text, no content-desc and no clickable flag — invisible to a filter keyed on those. `isCheckable` is now part of what makes a node meaningful, and a toggle goal prefers the row that encloses a switch-like widget.
 
 Documentation carried its own bug: the `RUN_TASK` broadcast published in `android/README.md` could never have worked, because Android 8+ never delivers an implicit broadcast to a manifest-declared receiver. It reported success and did nothing.
+
+### 13.6 Continuous Integration
+
+`dev-sam` is pushed and the workflow runs four jobs on every push: the Python suite on 3.10/3.11/3.12, and an Android job that runs the JVM engine tests, assembles the debug APK and uploads it as a build artifact. Anyone on the team can pull a current build with `gh run download --branch dev-sam --name anima-debug-apk`, without installing a single Android tool.
+
+The Android job earned its place immediately by failing on its first run: `android-actions/setup-android@v3` defaults to installing `tools platform-tools`, and the `tools` package was retired from the SDK repository, so the step exited 1 before Gradle ever started. The workflow now names the packages the build actually needs, matching `android/env.sh`. A module that had gone three phases without compiling now cannot regress silently.

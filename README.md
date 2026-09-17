@@ -128,7 +128,10 @@ adb shell "am broadcast -a io.agents.anima.RUN_TASK \
 ```
 Anima broadcasts `io.agents.anima.TASK_COMPLETED` carrying the engine's real `success`, `latency_ms` and `llm_calls` — `0` on a replayed skill.
 
-CI builds the APK on every push and uploads it as an artifact, so you can grab a build without any local Android toolchain.
+CI builds the APK on every push and uploads it as an artifact, so you can grab a build without any local Android toolchain:
+```zsh
+gh run download --branch dev-sam --name anima-debug-apk
+```
 
 ---
 

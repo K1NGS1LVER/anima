@@ -5,14 +5,16 @@
 
 ## Where to pick up
 
-**Steps 0–6 are done and verified on hardware.** The APK builds, installs on a physical Redmi Note 11, and genuinely drives the real Settings UI: `toggle wifi` flipped `wifi_on` 1 → 0, then replayed twice at **0 LLM calls** in 264ms and 687ms.
+**Steps 0–7 are done and verified.** `dev-sam` is pushed, and CI is green on all four jobs — including the Android job, which builds the APK on a clean runner and uploads it as a downloadable artifact.
+
+Phase 9 is verified on hardware: the APK installs on a physical Redmi Note 11 and drives the real Settings UI — `toggle wifi` flipped `wifi_on` 1 → 0, then replayed twice at **0 LLM calls** in 264ms and 687ms.
 
 **Next actions, in order:**
-1. Exercise the edge-glow overlay and the "Take Control" kill-switch by hand — the only untested device path.
-2. Push `dev-sam` so the new CI Android job actually runs; it has never executed.
+1. Exercise the edge-glow overlay and the "Take Control" kill-switch by hand — the only untested device path, and it needs human eyes on the screen.
+2. Open a PR from `dev-sam` into `main` when the team is ready to merge.
 3. Optional: the host↔phone bridge (`anima.py --android`). The JSON skill format is already compatible, so this is small.
 
-**Nothing is pushed yet.** `dev-sam` is local-only.
+**Grab a build without a toolchain:** `gh run download --branch dev-sam --name anima-debug-apk`.
 
 ## Environment (reproduce with `source android/env.sh`)
 
@@ -29,6 +31,14 @@
 One-time setup on a fresh machine is documented at the top of `android/env.sh`.
 
 ## Log
+
+### 2026-09-18 — `dev-sam` pushed, CI green end to end
+
+Branch is on `origin`. All four CI jobs pass: Python on 3.10/3.11/3.12, and the Android job building the APK on a clean Ubuntu runner (2m27s) with the artifact uploaded at 4.7 MB.
+
+The Android job failed on its very first run, which is exactly why it was worth adding: `android-actions/setup-android@v3` defaults to installing `tools platform-tools`, and the obsolete `tools` package no longer exists in the SDK repository, so sdkmanager exits 1 with "Failed to find package 'tools'". Fixed by naming the packages the build actually needs (`345bb64`), matching `android/env.sh`.
+
+Two harmless annotations remain: Node 20 deprecation on several actions, and `setup-java@v4` deprecation. Neither breaks the build; worth bumping when someone touches the workflow next.
 
 ### 2026-09-18 — Step 6: it works on a real phone
 
