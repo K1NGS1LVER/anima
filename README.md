@@ -120,9 +120,11 @@ make android-test  # hermetic JVM engine tests, no device needed
 
 Open **Anima** on the phone: it walks you through the two permission grants, then **RUN 3-ACT DEMO** plays Cold → Warm → Chaos on-screen with a live scoreboard. That demo needs no target app, no network and no permissions, by design.
 
-Drive it from a laptop over the Tasker/MacroDroid intent API:
+Drive it from a laptop over the Tasker/MacroDroid intent API (the component
+target is required — Android 8+ drops implicit broadcasts to manifest receivers):
 ```zsh
-adb shell am broadcast -a io.agents.anima.RUN_TASK --es goal "toggle wifi"
+adb shell "am broadcast -a io.agents.anima.RUN_TASK \
+  -n io.agents.anima.debug/io.agents.anima.TaskerReceiver --es goal 'toggle wifi'"
 ```
 Anima broadcasts `io.agents.anima.TASK_COMPLETED` carrying the engine's real `success`, `latency_ms` and `llm_calls` — `0` on a replayed skill.
 

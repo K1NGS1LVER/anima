@@ -62,16 +62,20 @@ From the app: type a goal and hit **RUN**, or hit **RUN 3-ACT DEMO** for the Col
 Over ADB, via the Tasker/MacroDroid Intent API:
 
 ```bash
-adb shell am broadcast -a io.agents.anima.RUN_TASK \
-  --es goal "Set alarm for 7:30 AM" \
-  --es params '{"time":"07:30"}'
+# The -n component target is required, not optional: since Android 8.0 an
+# implicit broadcast is never delivered to a manifest-declared receiver, so the
+# action alone reaches nothing and fails silently. Note the .debug suffix on
+# debug builds. Quote the goal for the *device* shell -- adb strips one layer.
+adb shell "am broadcast -a io.agents.anima.RUN_TASK \
+  -n io.agents.anima.debug/io.agents.anima.TaskerReceiver \
+  --es goal 'Set alarm for 7:30 AM' --es params '{\"time\":\"07:30\"}'"
 
 adb logcat -s AnimaAgent AnimaTasker
 ```
 
 Anima broadcasts `io.agents.anima.TASK_COMPLETED` with `success` (Boolean), `latency_ms` (Long) and `llm_calls` (Int). On a replayed skill, `llm_calls` is `0` — those are the engine's real numbers, not a fixed value.
 
-**Tasker / MacroDroid:** Action → Send Intent, action string `io.agents.anima.RUN_TASK`, extra `goal:Order my usual coffee`, optional extra `params:{"size":"grande"}`, target Broadcast Receiver.
+**Tasker / MacroDroid:** Action → Send Intent, action string `io.agents.anima.RUN_TASK`, extra `goal:Order my usual coffee`, optional extra `params:{"size":"grande"}`, target Broadcast Receiver. Set the **Package** field to `io.agents.anima` (or `io.agents.anima.debug`) — for the same Android 8+ reason, an intent with no package or component is dropped before it reaches Anima.
 
 ---
 
