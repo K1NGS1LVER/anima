@@ -5,9 +5,12 @@
 
 ## Where to pick up
 
-**Next action:** Step 6, on-device validation. The APK builds and installs cleanly; what's left is running it on a real phone. The phone is connected over USB but `adb` reports it `unauthorized` — accept the "Allow USB debugging?" dialog on the phone, then `make apk-install`.
+**Steps 0–6 are done and verified on hardware.** The APK builds, installs on a physical Redmi Note 11, and genuinely drives the real Settings UI: `toggle wifi` flipped `wifi_on` 1 → 0, then replayed twice at **0 LLM calls** in 264ms and 687ms.
 
-**Steps 0–5 are done and verified.** `./gradlew :app:assembleDebug` produces a 5.7 MB APK, 65 Kotlin tests and 22 Python tests pass.
+**Next actions, in order:**
+1. Exercise the edge-glow overlay and the "Take Control" kill-switch by hand — the only untested device path.
+2. Push `dev-sam` so the new CI Android job actually runs; it has never executed.
+3. Optional: the host↔phone bridge (`anima.py --android`). The JSON skill format is already compatible, so this is small.
 
 **Nothing is pushed yet.** `dev-sam` is local-only.
 
@@ -27,7 +30,23 @@ One-time setup on a fresh machine is documented at the top of `android/env.sh`.
 
 ## Log
 
-### 2026-09-18 — Steps 2–5 complete: the APK builds and the engine is real
+### 2026-09-18 — Step 6: it works on a real phone
+
+Device: Redmi Note 11 (`2201117TI`, MIUI, Android 13 / API 33).
+
+**3-act demo, on-screen:** Act 1 cold 43ms / 1 call / $0.0024 · **Act 2 warm 2ms / 0 LLM calls / $0.00** · Act 3 self-healing chaos 54ms. Total 99ms against a ~180s, ~$0.90 stateless baseline.
+
+**Real Settings UI, over the intent API:** `toggle wifi` tapped (540,498) and `wifi_on` went 1 → 0; two further runs replayed at `llmCalls=0` in 264ms and 687ms, each physically flipping Wi-Fi. The first run also proved self-healing on a real app: the stale skill drifted, was re-grounded and repaired in the on-device SQLite.
+
+Getting there turned up **four planner bugs no mock could have caught** (`19fbb5b`), because real Android is less tidy than the fixtures:
+1. `"wifi" in "wi-fi"` is False — punctuation in labels broke every match, and the fixtures hid it because their resource-ids contain the bare word.
+2. The label is an inert TextView inside the clickable row, so tapping the label did nothing.
+3. Every network row's content-desc says "…,Wi-Fi signal full.", so a *mention* outranked the actual switch and the agent opened a share-password dialog instead.
+4. Both the screen title and the toggle row are labelled "Wi-Fi" — and MIUI renders the switch as a `CheckBox` with no text, no desc and no clickable flag, which the Kotlin capture filter dropped outright.
+
+Plus a documentation bug worth remembering (`0da93b7`): the RUN_TASK broadcast in the README **could never have worked**. Android 8+ never delivers an implicit broadcast to a manifest receiver, so it printed `Broadcast completed: result=0` and did nothing. `-n <pkg>/<receiver>` is mandatory.
+
+### 2026-09-17 — Steps 2–5 complete: the APK builds and the engine is real
 
 `./gradlew :app:assembleDebug` → **app-debug.apk, 5.7 MB**. `:app:testDebugUnitTest` → **65 tests, 0 failures**. Python still 22/22.
 

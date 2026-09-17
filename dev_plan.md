@@ -3,7 +3,7 @@
 > **Document Classification:** Internal Technical Blueprint & Developer Roadmap  
 > **Target Platform:** Android (Native APK / Embedded SDK) + Host-Tethered Python Runtime  
 > **Audience:** Core Engineering Contributors, AI Researchers, and Hackathon Collaborators  
-> **Status:** Phases 1–8 complete for the Python runtime. ⚠️ Phase 9 in progress on `dev-sam`: the Android module was scaffolding, not a shipping APK — see §13.
+> **Status:** Phases 1–9 complete. Phase 9 rebuilt the Android module from scaffolding into a working APK, verified on a physical device — see §13.
 
 ---
 
@@ -210,7 +210,7 @@ Position Anima **not** as another generic conversational chat wrapper, but as an
 | **Phase 6** | **On-Device LiteRT-LM Local Inference & Packaging** | ✅ **COMPLETED** | `LocalLiteRTPlanner` for quantized Gemma 4 / LiteRT-LM inference via local HTTP/socket, 100% offline privacy, `--local` CLI flag, and standalone Gradle build setup (`build.gradle.kts`, `settings.gradle.kts`). |
 | **Phase 7** | **End-to-End Verification & Multi-Screen Flow Validation** | ✅ **COMPLETED** | 5 realistic E2E journey scenarios (`test_e2e.py`), stateful multi-screen device emulation, form input slot substitution, mid-flight popup auto-recovery, and CLI subprocess verification. |
 | **Phase 8** | **Polish, Demo & Hackathon Readiness** | ✅ **COMPLETED** | Staged 3-act `make demo` (Cold→Warm→Chaos) with live token-savings scoreboard, Biometric & Session-Expiry HITL (Python `BiometricGuard` + Kotlin haptic `biometricHalt()`), D3.js v7 force-directed PTG dashboard, skill import/export CLI. Suite at 20/20 tests. |
-| **Phase 9** | **Buildable APK & On-Device Engine** | 🚧 **IN PROGRESS** | Gradle wrapper + standard module layout, every AAPT2 blocker fixed, launcher Activity with permission gate, Kotlin port of the skill engine (store/matcher/replay) so the phone replays with 0 LLM calls, JVM unit tests, and an Android CI job that builds the APK. Tracked in `PLAN.md` / `CHECKLIST.md` / `CURRENT_PROGRESS.md`. |
+| **Phase 9** | **Buildable APK & On-Device Engine** | ✅ **VERIFIED ON HARDWARE** | Gradle wrapper + standard module layout, every AAPT2 blocker fixed, launcher Activity with permission gate, Kotlin port of the skill engine (store/matcher/replay) so the phone replays with 0 LLM calls, JVM unit tests, and an Android CI job that builds the APK. Tracked in `PLAN.md` / `CHECKLIST.md` / `CURRENT_PROGRESS.md`. |
 
 ---
 
@@ -386,3 +386,26 @@ Working docs: `PLAN.md`, `CHECKLIST.md`, `CURRENT_PROGRESS.md`.
 #### 13.3.6 Essential-State Verification Is Advisory, Never Fatal
 - **Decision:** A step that fails its milestone check is still executed, and the run still completes; unverified steps are counted and reported in the result.
 - **Reason:** The check is a heuristic over screen diffs. A false negative aborting a live run is a far worse failure than a step that silently did nothing, and the count still surfaces the problem honestly.
+
+### 13.4 Hardware Verification (Redmi Note 11, MIUI, Android 13)
+
+The APK was built, installed and exercised on a physical device rather than an emulator.
+
+| Check | Result |
+| :--- | :--- |
+| 3-act demo, on-screen | Cold 43ms / 1 call · **Warm 2ms / 0 LLM calls / $0.00** · Chaos 54ms self-healed |
+| Real Settings UI via `RUN_TASK` | `toggle wifi` tapped (540,498), `wifi_on` 1 → 0 |
+| Warm replay on hardware | `llmCalls=0` at 264ms and 687ms, each physically flipping Wi-Fi |
+| Self-healing on a real app | Stale skill drifted, re-grounded, repaired in on-device SQLite |
+| Network isolation | No network code and no `INTERNET` permission anywhere in the app |
+
+Four planner bugs surfaced only on real hardware, none of which any mock fixture could have caught — see §13.5. That is the argument for ecological validity in one paragraph: the fixtures were too tidy.
+
+### 13.5 What Real Android Taught Us
+
+1. **Labels are typography, not identifiers.** MIUI writes "Wi-Fi"; `"wifi" in "wi-fi"` is False. Matching now compares punctuation-stripped forms.
+2. **The label is not the button.** The text lives on an inert `TextView` inside a clickable row. A matched non-clickable node now resolves to the smallest clickable node containing it.
+3. **A mention is not a name.** Every Wi-Fi network row carries `"…,Connected,Wi-Fi signal full."`, so a mention outscored the switch and the agent opened a share-password dialog. An exact label match now outranks a substring.
+4. **OEMs rename their widgets.** MIUI renders the master switch as a `CheckBox` with no text, no content-desc and no clickable flag — invisible to a filter keyed on those. `isCheckable` is now part of what makes a node meaningful, and a toggle goal prefers the row that encloses a switch-like widget.
+
+Documentation carried its own bug: the `RUN_TASK` broadcast published in `android/README.md` could never have worked, because Android 8+ never delivers an implicit broadcast to a manifest-declared receiver. It reported success and did nothing.

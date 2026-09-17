@@ -60,16 +60,16 @@ Anima has **zero third-party dependencies** outside standard Python 3.10+.
 
 ### 1. Run Hermetic Unit & End-to-End Tests
 ```zsh
-# Run fast unit tests (16 tests in ~0.6s):
+# Run fast unit tests (18 tests in ~0.6s):
 make test
 
 # Run multi-screen End-to-End journeys (6 scenarios in ~1.7s):
 make e2e
 
-# Run all 22 hermetic tests:
+# Run all 24 hermetic tests:
 make test-all
 ```
-*22 hermetic tests (16 unit + 6 E2E) validating multi-screen navigation, dynamic parameter slots, popup auto-dismissal, UIFormer compression, on-device LiteRT execution, and security injection rejection.*
+*24 hermetic Python tests (18 unit + 6 E2E), plus 75 Kotlin engine tests, validating multi-screen navigation, dynamic parameter slots, popup auto-dismissal, UIFormer compression, on-device LiteRT execution, and security injection rejection.*
 
 ### 2. The Hackathon Demo — One Command
 ```zsh

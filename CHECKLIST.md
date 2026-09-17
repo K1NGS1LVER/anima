@@ -57,22 +57,24 @@ Run `source android/env.sh` before any Gradle or ADB command below.
 
 ## Step 5 — Tests & CI
 
-- [x] `./gradlew :app:testDebugUnitTest` green — **65 tests, 0 failures, 0 errors**
+- [x] `./gradlew :app:testDebugUnitTest` green — **75 tests, 0 failures, 0 errors**
 - [x] `TextRatio` matches `difflib.SequenceMatcher` on values confirmed against real Python output
 - [x] Matcher: exact-id 1.0, fuzzy desc, spatial falloff, sub-threshold null, first-node-wins ties
 - [x] Cross-runtime: a `skills.json` written by Python imports into the Kotlin store and scores identically
 - [x] CI `android` job builds the APK and uploads it as an artifact — *written; unverified until the branch is pushed*
 - [x] `make apk` / `make android-test` shortcuts
 
-## Step 6 — On-device (needs the phone plugged in)
+## Step 6 — On-device (Redmi Note 11, MIUI, Android 13 / API 33)
 
-- [~] `adb devices` lists the phone — connected as `cdf9a5bc`, **status `unauthorized`**: accept the "Allow USB debugging?" dialog on the phone
-- [ ] `./gradlew :app:installDebug` succeeds
-- [ ] App opens, both permission rows flip to ENABLED after the guided grants
-- [ ] 3-act demo runs on-screen, Act 2 reports 0 LLM calls
-- [ ] `adb shell am broadcast -a io.agents.anima.RUN_TASK --es goal "toggle wifi"` drives the real Settings UI
-- [ ] Edge-glow overlay appears and "Take Control" halts execution
-- [ ] Warm run reports `llm_calls=0` in the completion broadcast
+- [x] `adb devices` lists the phone — `cdf9a5bc`
+- [x] APK installs — needed MIUI's **Install via USB** + **USB debugging (Security settings)**; without them `adb install` fails `INSTALL_FAILED_USER_RESTRICTED`
+- [x] App opens with no crash, permission gate renders, notifications prompt fires
+- [x] Accessibility service connects — `AnimaAgent: Anima Accessibility Service connected successfully`
+- [x] **3-act demo runs on-screen**: Act 1 cold 43ms/1 call/$0.0024 · **Act 2 warm 2ms / 0 LLM calls / $0.00** · Act 3 self-healed 54ms · total 99ms vs ~180s baseline
+- [x] **Drives the real Settings UI** — `toggle wifi` tapped (540,498) and `wifi_on` went 1 → 0
+- [x] **Warm replay on hardware reports `llmCalls=0`** — 264ms and 687ms across two consecutive runs, each physically flipping Wi-Fi
+- [x] Self-healing verified on a real app — the stale skill drifted, re-grounded and repaired itself in the on-device SQLite
+- [ ] Edge-glow overlay + "Take Control" kill-switch exercised by hand ← only remaining device item
 
 ## Step 7 — Docs
 
