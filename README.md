@@ -69,7 +69,7 @@ make e2e
 # Run all 24 hermetic tests:
 make test-all
 ```
-*24 hermetic Python tests (18 unit + 6 E2E), plus 75 Kotlin engine tests, validating multi-screen navigation, dynamic parameter slots, popup auto-dismissal, UIFormer compression, on-device LiteRT execution, and security injection rejection.*
+*24 hermetic Python tests (18 unit + 6 E2E), plus 72 Kotlin engine tests, validating multi-screen navigation, dynamic parameter slots, popup auto-dismissal, UIFormer compression, on-device LiteRT execution, and security injection rejection.*
 
 ### 2. The Hackathon Demo — One Command
 ```zsh

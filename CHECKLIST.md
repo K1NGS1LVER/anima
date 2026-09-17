@@ -57,7 +57,7 @@ Run `source android/env.sh` before any Gradle or ADB command below.
 
 ## Step 5 — Tests & CI
 
-- [x] `./gradlew :app:testDebugUnitTest` green — **75 tests, 0 failures, 0 errors**
+- [x] `./gradlew :app:testDebugUnitTest` green — **72 tests, 0 failures, 0 errors**
 - [x] `TextRatio` matches `difflib.SequenceMatcher` on values confirmed against real Python output
 - [x] Matcher: exact-id 1.0, fuzzy desc, spatial falloff, sub-threshold null, first-node-wins ties
 - [x] Cross-runtime: a `skills.json` written by Python imports into the Kotlin store and scores identically
