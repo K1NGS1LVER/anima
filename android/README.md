@@ -11,11 +11,9 @@ This module implements the **Phone-Resident Execution Harness** for the Anima au
    - Intercepts system popups and auto-dismisses transient permissions.
    - Implements an atomic emergency kill switch (`emergencyHalt()`) for immediate human takeover.
 
-2. **`FloatingOverlayService.kt`:**
-   - Foreground service rendering a draggable floating HUD chat-head (`TYPE_APPLICATION_OVERLAY`).
-   - Displays real-time agent state: `IDLE`, `REPLAYING (0 LLM)`, `PLANNING`, or `HALTED`.
-   - Live token and latency scoreboard.
-   - Prominent physical **STOP** button to immediately abort automation.
+2. **`FloatingOverlayService.kt` (Gemini-Style Ambient Screen Overlay):**
+   - **Luminous Edge-Glow Perimeter:** Fullscreen overlay window with `FLAG_NOT_TOUCHABLE` casting an animated, pulsating cyan/indigo/violet gradient border around the phone bezels, visually signaling that Anima has assumed execution control.
+   - **Bottom Floating Island Capsule:** Frosted dark capsule anchored at the screen bottom displaying live agent status (`Replaying Skill (0 LLM)`), performance scoreboard, and an instant **"Take Control"** emergency kill-switch button.
 
 3. **`TaskerReceiver.kt`:**
    - Exported broadcast receiver implementing the **PokeClaw Intent API** (`io.agents.anima.RUN_TASK`).

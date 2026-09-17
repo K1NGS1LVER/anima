@@ -64,7 +64,7 @@ class AnimaAccessibilityService : AccessibilityService() {
     fun emergencyHalt() {
         shouldHalt.set(true)
         isExecuting.set(false)
-        FloatingOverlayService.updateState("HALTED")
+        FloatingOverlayService.releaseControlToUser("EMERGENCY HALT TRIGGERED")
         Log.w(TAG, "EMERGENCY HALT TRIGGERED: Active automation stopped.")
     }
 

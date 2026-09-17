@@ -61,8 +61,8 @@ class TaskerReceiver : BroadcastReceiver() {
             return
         }
 
-        // Update Floating HUD status
-        FloatingOverlayService.updateState("RUNNING: $goal")
+        // Trigger Gemini-style Edge Glow & Bottom Island Overlay
+        FloatingOverlayService.showAgentControl(goal, isReplay = true)
 
         // Execute task asynchronously on device execution thread
         Thread {
@@ -79,12 +79,12 @@ class TaskerReceiver : BroadcastReceiver() {
                 val success = true
                 val latencyMs = System.currentTimeMillis() - startTime
 
-                FloatingOverlayService.updateScoreboard(llmCalls = 0, latencyMs = latencyMs)
-                FloatingOverlayService.updateState("COMPLETED (0 LLM)")
+                FloatingOverlayService.showCompletion(latencyMs = latencyMs, llmCalls = 0)
 
                 broadcastResult(context, success = success, latencyMs = latencyMs, llmCalls = 0)
             } catch (e: Exception) {
                 Log.e(TAG, "Task execution failed", e)
+                FloatingOverlayService.releaseControlToUser("Error: ${e.message}")
                 broadcastResult(context, success = false, message = e.message)
             } finally {
                 AnimaAccessibilityService.isExecuting.set(false)

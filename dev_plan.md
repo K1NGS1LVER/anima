@@ -193,7 +193,7 @@ Position Anima **not** as another generic conversational chat wrapper, but as an
 | **Phase 2** | **Autonomous Prototype & Safety** | ✅ **COMPLETED** | Dual-mode cold planning (Gemini 2.5 Flash REST + Heuristic), auto-compilation, self-healing drift repair, visual fallback on empty XML, `PopupInterceptor`, `EssentialStateVerifier`, CI matrix, `pyproject.toml`, MIT license. |
 | **Phase 3** | **Resolution Invariance & Dynamic Slots** | ✅ **COMPLETED** | Relative coordinate normalization `[0.0, 1.0]` (1080p -> 1440p cross-device replay), `ParameterExtractor` (`{time}`, `{email}`, `{number}`), IME keyboard auto-dismissal, active weight normalization. |
 | **Phase 4** | **Page Transition Graph (PTG) & Visual Dashboard** | ✅ **COMPLETED** | Live interactive visualization mapping screen transitions, extracting design tokens, and streaming a real-time token savings scoreboard for hackathon demos (`--ptg`). |
-| **Phase 5** | **Native Android APK Daemon & Service Harness** | ✅ **COMPLETED** | Native Kotlin `AccessibilityService` listener, `SYSTEM_ALERT_WINDOW` floating HUD with emergency kill-switch, `ForegroundService`, and Tasker/MacroDroid Intent API (`io.agents.anima.RUN_TASK`). |
+| **Phase 5** | **Native Android APK Daemon & Service Harness** | ✅ **COMPLETED** | Native Kotlin `AccessibilityService` listener, Gemini-style ambient edge-glow border + frosted bottom island HUD with emergency kill-switch (`SYSTEM_ALERT_WINDOW`), `ForegroundService`, and Tasker/MacroDroid Intent API (`io.agents.anima.RUN_TASK`). |
 | **Phase 6** | **On-Device LiteRT-LM Local Inference** | ⏳ **PENDING (NEXT)** | Quantized 4-bit Gemma 4 on-device local model execution via Android NNAPI, removing cloud dependency completely. |
 
 ---
@@ -224,7 +224,7 @@ Position Anima **not** as another generic conversational chat wrapper, but as an
    - Live state transition graph mapping UI navigation and visual scoreboard (`ptg_dashboard.html`).
 5. **Native Android APK Daemon & Service Harness (`android/`):**
    - Native Kotlin `AnimaAccessibilityService` with `dispatchGesture()`, `AccessibilityNodeInfo` streaming, and emergency kill-switch.
-   - Draggable `FloatingOverlayService` chat-head HUD overlay with real-time token/latency stats.
+   - Google Gemini-inspired Screen Overlay (`FloatingOverlayService.kt`): animated edge-glow luminous border (`FLAG_NOT_TOUCHABLE`) signaling agent control + frosted bottom island capsule with live token stats and instant "Take Control" kill-switch.
    - `TaskerReceiver` broadcasting and receiving `io.agents.anima.RUN_TASK` for Tasker/MacroDroid automation.
 
 #### ⏳ What Is Pending for Subsequent Stages (Phase 6: Next Stage)
