@@ -3,7 +3,7 @@
 > **Document Classification:** Internal Technical Blueprint & Developer Roadmap  
 > **Target Platform:** Android (Native APK / Embedded SDK) + Host-Tethered Python Runtime  
 > **Audience:** Core Engineering Contributors, AI Researchers, and Hackathon Collaborators  
-> **Status:** ✅ Phases 1–7 Complete — All Core Architecture Delivered. Phase 8 (Polish & Demo) In Backlog.
+> **Status:** ✅ Phases 1–8 Complete — Including Hackathon Demo, HITL & D3 Dashboard.
 
 ---
 
@@ -209,6 +209,7 @@ Position Anima **not** as another generic conversational chat wrapper, but as an
 | **Phase 5** | **Native Android APK Daemon & Service Harness** | ✅ **COMPLETED** | Native Kotlin `AccessibilityService` listener, Gemini-style ambient edge-glow border + frosted bottom island HUD with emergency kill-switch (`SYSTEM_ALERT_WINDOW`), `ForegroundService`, and Tasker/MacroDroid Intent API (`io.agents.anima.RUN_TASK`). |
 | **Phase 6** | **On-Device LiteRT-LM Local Inference & Packaging** | ✅ **COMPLETED** | `LocalLiteRTPlanner` for quantized Gemma 4 / LiteRT-LM inference via local HTTP/socket, 100% offline privacy, `--local` CLI flag, and standalone Gradle build setup (`build.gradle.kts`, `settings.gradle.kts`). |
 | **Phase 7** | **End-to-End Verification & Multi-Screen Flow Validation** | ✅ **COMPLETED** | 5 realistic E2E journey scenarios (`test_e2e.py`), stateful multi-screen device emulation, form input slot substitution, mid-flight popup auto-recovery, and CLI subprocess verification. |
+| **Phase 8** | **Polish, Demo & Hackathon Readiness** | ✅ **COMPLETED** | Staged 3-act `make demo` (Cold→Warm→Chaos) with live token-savings scoreboard, Biometric & Session-Expiry HITL (Python `BiometricGuard` + Kotlin haptic `biometricHalt()`), D3.js v7 force-directed PTG dashboard, skill import/export CLI. Suite at 20/20 tests. |
 
 ---
 
@@ -252,16 +253,23 @@ Position Anima **not** as another generic conversational chat wrapper, but as an
 
 ---
 
-## 10. Phase 8 — Polish, Demo & Hackathon Readiness (BACKLOG)
+## 10. Phase 8 — Polish, Demo & Hackathon Readiness
 
 The following items are approved backlog candidates for Phase 8. Each must be implemented as **atomic, incremental commits** (one logical unit per commit).
 
-| Priority | Item | Description |
-| :--- | :--- | :--- |
-| 🔴 **P0** | **Live Hackathon Demo Script** | `make demo` runs a fully staged 3-act presentation: (1) Cold Run with UIFormer compression stats, (2) Warm Replay at 0-LLM/~0.001s, (3) Self-Healing Chaos Test with drift injection. Rich CLI output with timing + token savings scoreboard. |
-| 🟠 **P1** | **Biometric & Session-Expiry HITL** | Detects `com.android.systemui:id/biometric_prompt` mid-task via `AnimaAccessibilityService`. Pauses automation, rings haptic chime, yields control to user, then resumes on re-focus. Closes blind spot documented in §7.D. |
-| 🟡 **P2** | **PTG Force-Directed Interactive Graph** | Upgrade `ptg_dashboard.html` from static edge list to a D3.js force-directed graph for a dramatically more impressive demo visual. Zero new Python dependencies — JS only. |
-| 🟡 **P2** | **Skill Library Import/Export CLI** | `anima export-skills skills.json` / `anima import-skills skills.json` for sharing compiled skill packs across teams. Enables hackathon story around community skill sharing. |
+| Priority | Item | Status | Description |
+| :--- | :--- | :--- | :--- |
+| 🔴 **P0** | **Live Hackathon Demo Script** | ✅ **COMPLETED** | `make demo` runs a staged 3-act presentation: (1) Cold Run with UIFormer compression stats (measured real byte reduction), (2) Warm Replay at 0-LLM/~0.001s, (3) Self-Healing Chaos Test with injected layout drift + mid-flight popup. Rich ANSI-styled CLI output with live timing + token savings scoreboard against the stateless baseline. |
+| 🟠 **P1** | **Biometric & Session-Expiry HITL** | ✅ **COMPLETED** | `BiometricGuard` in Python + `biometricHalt()` in Kotlin. Detects `com.android.systemui:id/biometric_prompt` and `biometric` markers mid-task, halts automation with `HITL_PAUSED` result / `releaseControlToUser`, and (Android) rings a gentle 250ms haptic pulse requesting the user to authenticate before resuming. Closes blind spot documented in §7.D. |
+| 🟡 **P2** | **PTG Force-Directed Interactive Graph** | ✅ **COMPLETED** | `ptg_dashboard.html` upgraded from static edge list to a D3.js v7 force-directed graph with drag/charge/link simulation, color-coded edges (green = 0-LLM replay, pink = cold/heal), and arrowheads. Zero new Python dependencies — JS only. |
+| 🟡 **P2** | **Skill Library Import/Export CLI** | ✅ **COMPLETED** | `anima --export-skills skills.json` / `anima --import-skills skills.json` shipped in Phase 1 `main()` via `SkillDB.export_json()/import_json()`; verified by `test_export_import_skills`. Enables community skill-sharing story. |
+
+### Phase 8 Status
+- ✅ **P0** `make demo` staged 3-act demo (12 tests remain hermetic: subprocess-verified by `test_e2e_staged_demo_subprocess`).
+- ✅ **P1** Biometric & session-expiry HITL — Python `BiometricGuard` (`test_biometric_hitl_guard`) + Kotlin `biometricHalt()` with haptic chime.
+- ✅ **P2** D3.js force-directed PTG dashboard (`test_ptg_force_directed_dashboard`).
+- ✅ **P2** Skill import/export CLI already live (Phase 1 foundation).
+- **Test suite grew to 20/20 passing tests (13 unit + 6 E2E + 1 demo subprocess).**
 
 ---
 
@@ -298,6 +306,10 @@ This section records key design decisions made during development sessions so fu
 - **Decision:** All commits in this repo use `git commit --no-gpg-sign`.
 - **Reason:** Global git config has `commit.gpgsign=true` with SSH signing at `/Users/dan/.ssh/id_ed25519_signing.pub`. Background git commits deadlock waiting for SSH passphrase without `--no-gpg-sign`.
 
+### 11.6 Biometric HITL — Dual-Layer Guard, Both Runtimes
+- **Decision:** The security boundary for biometric prompts is enforced identically in Python (`BiometricGuard.detect()` before every autonomous tap) and in Kotlin (`biometricHalt()` on `TYPE_WINDOW_STATE_CHANGED`).
+- **Rationale:** The standalone APK executes without the Python bridge, and the Python CLI runs without the APK. Neither can rely on the other for a hard safety cut — the guard must exist at both trust boundaries.
+
 ---
 
 ## 12. Commit History Reference
@@ -314,3 +326,8 @@ This section records key design decisions made during development sessions so fu
 | `1948127` | 5 | `feat(overlay): implement Google Gemini-style edge-glow and floating bottom island HUD` |
 | `398625d` | 6 | `feat(litert): add on-device local model planner, android gradle build setup, and update SSOT` |
 | `0d1f17f` | 7 | `feat(e2e): add comprehensive 5-scenario end-to-end test suite and CI integration` |
+
+### Phase 8 Working Log
+- **`08` → `0d1f17f`**: Re-used existing P2 export/import CLI (already shipped in Phase 1 `main()`); backlog item closed without new code.
+- **Demo craftsmanship decision:** `make demo` had run the bare CLI twice, which under-sells the pitch. Replaced with an in-process staged 3-act `run_demo()` (Cold→Warm→Chaos) using the hermetic `DemoDevice` — no API key, no emulator, fully deterministic. ANSI output, real byte-reduction measurements, and live timing, subprocess-verified by a new E2E test.
+- **HITL placement decision (§11.6):** Python `BiometricGuard` checks raw XML *before* popup interception and planner dispatch on both cold and warm paths, so a biometric screen never reaches an autonomous tap. Kotlin `biometricHalt()` mirrors it because the standalone APK runs without the Python bridge.

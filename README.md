@@ -71,15 +71,20 @@ make test-all
 ```
 *17 hermetic tests (12 unit + 5 E2E) validating multi-screen navigation, dynamic parameter slots, popup auto-dismissal, UIFormer compression, on-device LiteRT execution, and security injection rejection.*
 
-### 2. Live Dual-Mode Demonstration & PTG Dashboard (The Hackathon Demo)
+### 2. The Hackathon Demo — One Command
 ```zsh
-# Step 1: Cold Run (Planner reasons, executes action, auto-compiles to SQLite)
-python3 anima.py "toggle wifi" --mock --ptg
+make demo
+```
+Runs the full staged 3-act presentation on the hermetic `DemoDevice` (no emulator, no API key):
+1. **Cold Run** — UIFormer prunes the XML, planner picks an action, skill compiles to SQLite.
+2. **Warm Replay** — same goal replayed at **0 LLM calls in ~0.001s, $0.00**.
+3. **Self-Healing Chaos** — injected permission popup + layout drift, auto-recovered and repaired.
 
-# Step 2: Warm Run (Replays compiled skill in ~0.001s with 0 LLM calls!)
+Also export the live **D3 force-directed** Page Transition Graph dashboard:
+```zsh
 python3 anima.py "toggle wifi" --mock --ptg
 ```
-*Opens `ptg_dashboard.html` in any browser to inspect the live Page Transition Graph and token/latency scoreboard.*
+*Opens `ptg_dashboard.html` in any browser — draggable nodes, color-coded edges (green = 0-LLM replay, pink = cold/heal), and the token/latency scoreboard.*
 
 ### 3. Run Benchmark Suite
 Compare Anima against stateless LLM agents:
