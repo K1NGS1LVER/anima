@@ -61,5 +61,5 @@ Suite: **22/22** (was 20/20).
 ## Known issues / notes for whoever picks this up
 
 - **Commit `d7036ea` on `main` has an imperfect split** — it is labelled `feat(demo)` but also carries the HITL/IPGuard and D3 dashboard changes, because `anima.py` was staged as a unit. It is already on `origin/main`, so it is **not** being rewritten; recording it here instead. Don't be confused by the label when bisecting.
-- **CI does not build the Android module yet** (Step 5). Until it does, treat any "the Kotlin compiles" claim as unverified.
+- **CI now builds the Android module** and uploads the APK as an artifact, but that job has never run — `dev-sam` is unpushed. Treat the workflow itself as unverified until the first push goes green.
 - **Debug builds get applicationId `io.agents.anima.debug`** while class names stay `io.agents.anima.*`. Anything matching on component names (accessibility-service enablement checks, `adb shell` commands) must use the runtime `packageName`, never a hardcoded string.
