@@ -244,6 +244,21 @@ class TestAnimaEndToEnd(unittest.TestCase):
             self.assertIn("⚡️ Anima Page Transition Graph (PTG)", content)
             self.assertIn("Token Savings vs Baseline", content)
 
+    def test_e2e_staged_demo_subprocess(self):
+        """E2E Scenario 6: The staged 3-act demo runs end-to-end via the CLI."""
+        proc = subprocess.run(
+            [sys.executable, "anima.py", "--demo"],
+            capture_output=True, text=True,
+        )
+        self.assertEqual(proc.returncode, 0, f"Demo run failed: {proc.stderr}")
+        out = proc.stdout
+        self.assertIn("ACT 1  |  COLD COMPILATION", out)
+        self.assertIn("ACT 2  |  WARM 0-LLM SPECULATIVE REPLAY", out)
+        self.assertIn("ACT 3  |  SELF-HEALING CHAOS TEST", out)
+        self.assertIn("COLD_COMPILED", out)
+        self.assertIn("WARM_REPLAY", out)
+        self.assertIn("Self-healed", out)
+
     def test_e2e_security_injection_protection(self):
         """E2E Scenario 4: Adversarial command injection payloads are strictly neutralized."""
         malicious_goals = [

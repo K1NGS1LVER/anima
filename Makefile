@@ -10,10 +10,7 @@ test-all:
 	python3 -m unittest discover -p "test_*.py"
 
 demo:
-	@echo "==> Running Cold Compilation Run..."
-	python3 anima.py "toggle wifi" --mock
-	@echo "\n==> Running Warm 0-LLM Speculative Replay..."
-	python3 anima.py "toggle wifi" --mock
+	python3 anima.py --demo
 
 benchmark:
 	python3 anima.py --benchmark
