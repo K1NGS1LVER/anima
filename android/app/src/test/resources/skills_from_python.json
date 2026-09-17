@@ -1,0 +1,36 @@
+[
+  {
+    "intent": "toggle wifi",
+    "steps": [
+      {
+        "action": "tap",
+        "locator": {
+          "resource_id": "com.android.settings:id/switch_wifi",
+          "content_desc": "Wi-Fi",
+          "text": null,
+          "class_name": "Switch",
+          "bounds": [
+            880,
+            280,
+            1020,
+            400
+          ],
+          "rel_bounds": [
+            0.8148,
+            0.1167,
+            0.9444,
+            0.1667
+          ],
+          "rel_center": [
+            0.8796,
+            0.1417
+          ]
+        },
+        "param_slot": null,
+        "value": null
+      }
+    ],
+    "success": 1,
+    "failure": 0
+  }
+]
