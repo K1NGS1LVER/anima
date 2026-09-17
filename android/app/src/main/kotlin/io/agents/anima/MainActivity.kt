@@ -18,6 +18,7 @@ import io.agents.anima.databinding.ItemActResultBinding
 import io.agents.anima.engine.AccessibilityDevice
 import io.agents.anima.engine.AnimaEngine
 import io.agents.anima.engine.ExecutionResult
+import io.agents.anima.engine.IntentRouter
 import java.util.Locale
 
 /**
@@ -145,12 +146,35 @@ class MainActivity : AppCompatActivity() {
         binding.btnRunGoal.isEnabled = false
         binding.btnRunGoal.text = getString(R.string.btn_running)
 
+        // Layer 1 deterministic fast-path: a GUI agent can only act on what is
+        // in front of it, and pressing RUN leaves *this* screen in front. Route
+        // the goal to the system screen that owns the setting first.
+        val destination = IntentRouter.destinationFor(goal)
+        if (destination != null) {
+            Toast.makeText(
+                this,
+                getString(R.string.msg_routing_to, destination.label),
+                Toast.LENGTH_SHORT,
+            ).show()
+        }
+
         Thread {
+            val routed = destination != null && IntentRouter.launch(this, destination)
+            if (routed) Thread.sleep(SCREEN_SETTLE_MS)
+
             val result = engine.run(goal, AccessibilityDevice(service))
             runOnUiThread {
                 binding.btnRunGoal.text = getString(R.string.btn_run)
                 binding.btnRunGoal.isEnabled = isAccessibilityServiceEnabled()
-                Toast.makeText(this, result.message, Toast.LENGTH_LONG).show()
+                val message = if (!routed && service.isOwnUiInForeground()) {
+                    // Anima's own UI is excluded from capture, so there is
+                    // genuinely nothing to act on -- say so plainly instead of
+                    // reporting an opaque planning failure.
+                    getString(R.string.msg_open_target_app)
+                } else {
+                    result.message
+                }
+                Toast.makeText(this, message, Toast.LENGTH_LONG).show()
             }
         }.start()
     }
@@ -215,6 +239,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     companion object {
+        /**
+         * How long to let a routed system screen render before the agent looks
+         * at it. Too short and the capture sees the outgoing activity.
+         */
+        private const val SCREEN_SETTLE_MS = 1200L
+
         // One pruned-DOM planner call is ~1,200 tokens. Keep this in step with the
         // figure anima.py prints in its benchmark, so the on-phone scoreboard and
         // the laptop CLI never quote different numbers at the same judge.

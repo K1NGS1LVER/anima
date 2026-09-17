@@ -118,11 +118,22 @@ class AnimaAccessibilityService : AccessibilityService() {
         }
     }
 
+    /** The package currently in the foreground, or null if no window is readable. */
+    fun foregroundPackage(): String? = rootInActiveWindow?.packageName?.toString()
+
+    /** True when the screen the agent would act on is Anima's own UI. */
+    fun isOwnUiInForeground(): Boolean = foregroundPackage() == packageName
+
     /**
      * Traverses the active window and produces a flattened list of UI nodes.
+     *
+     * Anima's own windows are never included. Without this the agent happily
+     * reads the goal out of its own input field and taps that -- the goal text
+     * is, after all, the single best keyword match for the goal on screen.
      */
     fun captureCurrentWindowNodes(): List<AccessibilityNode> {
         val root = rootInActiveWindow ?: return emptyList()
+        if (root.packageName?.toString() == packageName) return emptyList()
         val nodes = mutableListOf<AccessibilityNode>()
         traverseNode(root, nodes)
         return nodes

@@ -46,5 +46,7 @@
     <!-- Toasts / transient messages -->
     <string name="msg_accessibility_service_disabled">Accessibility Service is off — enable it above before running a goal.</string>
     <string name="msg_goal_empty">Type a goal first.</string>
+    <string name="msg_routing_to">Opening %1$s…</string>
+    <string name="msg_open_target_app">Nothing to act on — Anima never drives its own screen. Open the app you want it to operate, then run the goal.</string>
     <string name="msg_notifications_denied">Notifications are off — the live agent HUD status will be silent.</string>
 </resources>
