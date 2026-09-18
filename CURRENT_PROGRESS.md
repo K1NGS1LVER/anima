@@ -63,6 +63,22 @@ One-time setup on a fresh machine is documented at the top of `android/env.sh`.
 
 ## Log
 
+### 2026-09-18 — Samuel: plan pushed to every branch; Neethu's theme rescued, her product doc dropped
+
+**Every feature branch now carries the full plan**, so nobody needs to check out `dev` to know what to do. All five are at `dev`, and each module README now ends with its owner's task order, the gate that blocks each task, and the issue that concerns it. Module READMEs are per-owner, so these never conflict across branches the way one shared `NEXT.md` would.
+
+**Neethu had pushed to `codex/pearlescent-android-ui`**, not `feat/app-ui`. It builds and tests pass, and the jet-black/pearlescent theme is genuinely good, so it is cherry-picked onto the branch the plan assigns her. Three changes:
+
+- **`PRODUCT.md` deleted.** It described the product we stopped building — "must retain its permission controls, goal runner, three-act demo", Anima as a thing that "replays learned skills". Its own *Evidence on Hand* line lists README.md and the layouts, so the agent that wrote it never opened `PLAN.md`, `ASSIGNMENTS.md` or `EXECUTION_PLAN.md`, all of which were on the commit it branched from. That is the argument for putting the plan on every branch, and it is why this entry exists.
+- **`DESIGN.md` moved to `android/app/`** and scoped. At the root it collided with the `design_system` section of a Knowledge Pack — the visual language Anima *extracts from a scanned app*, which is Jiya's module. Same word, two different things.
+- **Three colour tokens renamed.** `cyan_400` was `#EFF2F6`, a near-white; `indigo_500` a pale blue. A token whose name contradicts its value is worse than an unnamed one, because the next person picks by name and gets something else.
+
+The layouts stay only so the branch builds; `activity_main.xml` and `item_act_result.xml` are the retired demo scoreboard and get deleted under N1.
+
+**`golden.animapack` turned out to be a placeholder** — single entry named `dummy_pack.json` so it does not even load through `PackArchive.importPack()`, empty `screens[]`, and no screenshots at all, which is the entire input to `:design`. I had marked gate G1 open on the strength of the file existing. Corrected in `EXECUTION_PLAN.md` and `CHECKLIST.md`; Jiya gained a Y0 task to make her own fixtures rather than wait on it.
+
+Open issues: **#4** Neethu (branch and layouts), **#5** Jacob and Jiya (the fixture).
+
 ### 2026-09-18 — Samuel: execution plan for P1 → demo day (`EXECUTION_PLAN.md`)
 
 Wrote the runbook the team and their agents work from between now and T. Per-person task order, dependency gates with real check commands, and the freeze → regression → rehearsal → demo phases with exit criteria. Cross-linked from every other doc so there is one place to look.
