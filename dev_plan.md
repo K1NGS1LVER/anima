@@ -107,7 +107,8 @@ Anima is structured as a **Dual-Format Product Package**:
 
 1. **Primary Deliverable — Standalone Android Application (APK):**
    - Autonomous background service running directly on consumer Android devices.
-   - Houses the local SQLite skill library, LiteRT-LM model runtime, Accessibility Service, and WindowManager Floating HUD overlay.
+   - Houses the local SQLite skill library, Accessibility Service, and WindowManager Floating HUD overlay.
+   - *Planned (Phase 10, §14):* an on-device model runtime behind the `Planner` seam. The APK ships today with the offline heuristic planner only — there is no model in it.
 2. **Secondary Deliverable — Embedded Client SDK (`.aar` / Maven Library):**
    - Embedded by third-party app developers to grant their apps native AI agent capabilities with in-process performance.
 3. **External Automation Integration API:**
@@ -125,7 +126,7 @@ Anima is structured as a **Dual-Format Product Package**:
 * **MediaProjection API:** Requests user consent for on-demand screencasting when visual grounding fallback is activated.
 
 ### B. Hardware & Resource Optimization
-* **Quantized On-Device Models:** 4-bit / 8-bit quantized models (Gemma 4 via LiteRT-LM) requiring ~1.5–2.5GB RAM.
+* **Quantized On-Device Models (Phase 10 target, not yet implemented):** 4-bit / 8-bit quantized models (Gemma via LiteRT / MediaPipe) requiring ~1.5–2.5GB RAM.
 * **Hardware Acceleration:** Delegates local inference to the smartphone NPU/GPU via Android NNAPI, falling back to CPU on legacy chipsets.
 * **Thermal & Battery Protection:** Mechanical skill replay turns off model inference completely, consuming negligible battery during repetitive automation.
 
@@ -207,10 +208,11 @@ Position Anima **not** as another generic conversational chat wrapper, but as an
 | **Phase 3** | **Resolution Invariance & Dynamic Slots** | ✅ **COMPLETED** | Relative coordinate normalization `[0.0, 1.0]` (1080p -> 1440p cross-device replay), `ParameterExtractor` (`{time}`, `{email}`, `{number}`), IME keyboard auto-dismissal, active weight normalization. |
 | **Phase 4** | **Page Transition Graph (PTG) & Visual Dashboard** | ✅ **COMPLETED** | Live interactive visualization mapping screen transitions, extracting design tokens, and streaming a real-time token savings scoreboard for hackathon demos (`--ptg`). |
 | **Phase 5** | **Native Android APK Daemon & Service Harness** | ✅ **COMPLETED** | Native Kotlin `AccessibilityService` listener, Gemini-style ambient edge-glow border + frosted bottom island HUD with emergency kill-switch (`SYSTEM_ALERT_WINDOW`), `ForegroundService`, and Tasker/MacroDroid Intent API (`io.agents.anima.RUN_TASK`). |
-| **Phase 6** | **On-Device LiteRT-LM Local Inference & Packaging** | ✅ **COMPLETED** | `LocalLiteRTPlanner` for quantized Gemma 4 / LiteRT-LM inference via local HTTP/socket, 100% offline privacy, `--local` CLI flag, and standalone Gradle build setup (`build.gradle.kts`, `settings.gradle.kts`). |
+| **Phase 6** | **Local Model Client (Python) & Android Packaging** | ⚠️ **PARTIAL — see §14.1** | Python `LocalLiteRTPlanner`: a stdlib HTTP **client** that POSTs to a model server you run yourself (`--local`, `--local-url`). It is not an embedded runtime, and it has **no Kotlin equivalent** — the APK has no model. Gradle build setup shipped and was completed properly in Phase 9. |
 | **Phase 7** | **End-to-End Verification & Multi-Screen Flow Validation** | ✅ **COMPLETED** | 5 realistic E2E journey scenarios (`test_e2e.py`), stateful multi-screen device emulation, form input slot substitution, mid-flight popup auto-recovery, and CLI subprocess verification. |
 | **Phase 8** | **Polish, Demo & Hackathon Readiness** | ✅ **COMPLETED** | Staged 3-act `make demo` (Cold→Warm→Chaos) with live token-savings scoreboard, Biometric & Session-Expiry HITL (Python `BiometricGuard` + Kotlin haptic `biometricHalt()`), D3.js v7 force-directed PTG dashboard, skill import/export CLI. Suite at 20/20 tests. |
 | **Phase 9** | **Buildable APK & On-Device Engine** | ✅ **VERIFIED ON HARDWARE** | Gradle wrapper + standard module layout, every AAPT2 blocker fixed, launcher Activity with permission gate, Kotlin port of the skill engine (store/matcher/replay) so the phone replays with 0 LLM calls, JVM unit tests, and an Android CI job that builds the APK. Tracked in `PLAN.md` / `CHECKLIST.md` / `CURRENT_PROGRESS.md`. |
+| **Phase 10** | **Multi-Step Learning & Device-Agnostic Planning** | 📋 **PLANNED — see §14** | A bounded plan→act→observe cold loop so whole flows can be learned (today exactly one step is compiled), and a real model behind the `Planner` seam so grounding generalises across OEM skins instead of relying on rules hand-fitted to one phone. |
 
 ---
 
@@ -218,7 +220,7 @@ Position Anima **not** as another generic conversational chat wrapper, but as an
 
 #### ✅ What Has Been Completed
 1. **Hermetic Test Suite (17/17 Total Passing Tests):**
-   - **12 Unit Tests (`test_anima.py` in 0.59s):** UIFormer pruner, security rejection, cold-to-warm loop, self-healing drift, visual fallback, popup interception, milestone progress, skill export/import, cross-resolution replay, dynamic parameter slots, Page Transition Graph, and on-device LiteRT local planner.
+   - **Unit Tests (`test_anima.py`):** UIFormer pruner, security rejection, cold-to-warm loop, self-healing drift, visual fallback, popup interception, milestone progress, skill export/import, cross-resolution replay, dynamic parameter slots, Page Transition Graph, and the local-model HTTP client (against a stub server — no model is exercised).
    - **5 End-to-End Tests (`test_e2e.py` in 0.35s):**
      - `test_e2e_multi_screen_journey`: Stateful multi-screen application navigation (Launcher -> Settings -> Network -> Wi-Fi Toggle) with 0-LLM speculative replay.
      - `test_e2e_popup_interception_and_recovery`: Mid-flight system permission prompt interception, auto-dismissal, and underlying task completion.
@@ -239,7 +241,7 @@ Position Anima **not** as another generic conversational chat wrapper, but as an
    - Google Gemini-inspired Screen Overlay (`FloatingOverlayService.kt`): animated edge-glow luminous border (`FLAG_NOT_TOUCHABLE`) signaling agent control + frosted bottom island capsule with live token stats and instant "Take Control" kill-switch.
    - `TaskerReceiver` broadcasting and receiving `io.agents.anima.RUN_TASK` for Tasker/MacroDroid automation.
 6. **On-Device Local Inference & Android Packaging (`android/`):**
-   - `LocalLiteRTPlanner` with `--local` and `--local-url` for quantized model inference (Gemma 4-bit via LiteRT-LM).
+   - `LocalLiteRTPlanner` with `--local` and `--local-url` — an HTTP client for a model server the user runs; Python only, no model bundled.
    - Gradle build scripts (`build.gradle.kts`, `settings.gradle.kts`, `gradle.properties`) for standalone APK compilation and deployment.
 7. **End-to-End Verification & Multi-Screen Flow Validation:**
    - `test_e2e.py` — 5 comprehensive scenarios using `StatefulMockDevice` (no emulator required):
@@ -440,3 +442,113 @@ Matcher.score(wifi_row_locator, bluetooth_row) == 1.0
 §2 has described a "Layer 1 fast-path: deterministic system APIs" since the first draft, and nothing implemented it. Typing "turn off bluetooth" into the app's goal box did nothing useful as a direct result: a GUI agent acts on what is in front of it, and pressing RUN leaves *Anima* in front. The executed taps landed on Anima's own goal input field — the text the user had just typed being, unsurprisingly, the best keyword match on screen for their own goal.
 
 `IntentRouter` now maps a goal naming a system setting to the settings screen that owns it, launches it with `CLEAR_TOP` (Settings is a single task, so back-to-back goals would otherwise re-show the previous page), waits for it to render, and only then hands over to the perception loop. Zero LLM calls. Anima's own windows are also excluded from capture outright — the agent must never drive its own UI.
+
+---
+
+## 14. Phase 10 — Multi-Step Learning & Device-Agnostic Planning
+
+> **Status: planned, not started.** Everything in this section is intent. Nothing here is implemented, and no claim in it should be read as a capability until its checklist item in `CHECKLIST.md` is ticked against a passing command.
+
+### 14.1 Why This Phase Exists
+
+Phase 9 proved the **replay** half of Anima on real hardware. The **learning** half does not exist yet, and two audits make the gap concrete.
+
+**The cold path compiles exactly one step.** Both compile sites build a one-element list — `anima.py:1271` and `AnimaRuntime.kt:179`:
+
+```python
+steps=[Step(action=action, locator=Locator.from_node(target_node), param_slot=slot_name, value=val)]
+```
+
+There is no loop anywhere in the cold path. Every multi-step skill in this repository is a hand-written test fixture. "Set an alarm for 7:30 AM" — open Clock, Alarm tab, `+`, hour, minute, confirm — is unreachable by construction, and so is every example in §1 that made this project sound interesting. The replay side is already N-step-general (`for idx, step in enumerate(skill.steps)`), so the entire gap is on the compile side.
+
+**There is no model in the APK.** `AnimaEngine.kt:15` hardcodes `private val planner: Planner = HeuristicPlanner()`, the module declares no `INTERNET` permission, and no ML dependency exists in `android/app/build.gradle.kts`. Grounding is token overlap against on-screen labels.
+
+**And the OEM problem is the real driver.** Every planner fix in Phase 9 — punctuation-stripping so "wifi" matches "Wi-Fi", the actionable-ancestor redirect, preferring an exact label over a mention, the toggle-row rule that exists *only* because MIUI renders the Wi-Fi master switch as a `CheckBox` — is a rule hand-fitted to one skin on one phone. Samsung One UI, Pixel, ColorOS and HyperOS label, nest and class their widgets differently, and a German or Japanese device shares none of the English keywords at all. That approach scales to "the phones we tested on", not to "any make and model".
+
+A model reading the pruned Agent-DOM generalises where keyword rules cannot: it can identify a row labelled *"Bluetooth-Verbindung"* containing a `CheckBox` as the Bluetooth toggle without anyone writing a German rule or a ColorOS rule. **Device-agnostic operation is the objective of this phase; the model is the means.** The heuristic planner remains as the offline floor and the fallback when no model is available.
+
+### 14.2 Workstream A — Multi-Step Cold Planning
+
+Replace the single `plan → act → compile` with a bounded `plan → act → observe` loop, in `AnimaRuntime.run` (Python, the cold tail from `anima.py:1248`) and `AnimaRuntime.coldCompile` (Kotlin, `AnimaRuntime.kt:137-206`, already factored into its own function).
+
+Each iteration:
+
+1. Capture and prune the screen.
+2. **`BiometricGuard`** — halt to `HITL_PAUSED` before any autonomous tap. *Existing, unchanged.*
+3. **`PopupInterceptor`** — a dismissal does not consume a step from the budget. *Existing.*
+4. Compute a screen signature for cycle detection.
+5. `planner.planStep(goal, domJson, nodes, history)` — the signature grows a `history` argument so a model can see what it already did; the heuristic ignores it except to avoid re-tapping an element it has already used.
+6. A terminal `done` action ends the loop successfully; `null` means stuck and aborts.
+7. Execute, re-capture, run `EssentialStateVerifier` for per-step progress.
+8. Append to the trajectory.
+
+**Loop guards — this is the whole safety story for autonomy:**
+
+| Guard | Behaviour |
+| :--- | :--- |
+| **Step budget** | Hard cap (~12 actions), reported in the result. |
+| **No-progress abort** | Two consecutive steps failing the essential-state check ends the run. |
+| **Cycle detection** | A repeated screen signature with no intervening progress ends the run. |
+| **Destructive-action guard** *(new)* | "Delete", "Remove", "Pay", "Buy", "Send", "Confirm purchase" and similar require HITL confirmation regardless of budget. |
+
+The destructive-action guard is not optional. Single-step automation could only ever mis-tap once; an autonomous loop wandering a real app can reach a payment or deletion control on its own. Multi-step autonomy without this guard is not shippable.
+
+**Compilation happens only on completion**, with the full N-step trajectory and per-step `ParameterExtractor` slot extraction. An aborted trajectory is reported and discarded — never saved. This follows directly from the Phase 9 wrong-screen bug (§13.7): a wrong skill is worse than no skill, because it *succeeds* incorrectly.
+
+**Completion without a model.** The heuristic reports `done` when no remaining candidate scores above the floor *and* at least one step verified progress — "nothing left on screen matches the goal". Honest, and sufficient for toggle-shaped flows. A model planner returns `done` explicitly.
+
+**Friction the audit surfaced, to be resolved during implementation:**
+
+- Python has **two** single-step compile sites: the cold path and the visual-fallback branch (`anima.py:1227`). Kotlin has neither a visual fallback nor a `planVisual` method — it returns `MODE_FAILED` on empty nodes. Decide explicitly whether the loop covers visual fallback or excludes it.
+- Kotlin's `ExecutionResult` has **no `stepsVerified` field** (Python does, added in Phase 9); it folds verification into message text. Align the two.
+- `stepsExecuted` / `steps_executed` are hardcoded `1` literals in both cold returns. They must become derived counts.
+- Kotlin's `Skill.steps` is an immutable `List<Step>`, so the loop needs a `MutableList` accumulator wrapped at the end.
+- **`DemoDevice` is a single static screen**, purpose-built for a one-shot compile. A multi-step loop would be only trivially exercised by the 3-act demo. Extend the fixture to a multi-screen flow — `StatefulMockDevice` in `test_e2e.py` is the model — or the loop ships with no demo coverage.
+- `test_e2e_multi_screen_journey` currently models a multi-screen journey as **three independent goals**, each cold-compiling one step. Under a one-goal/many-steps model that test needs redesigning, not just re-asserting.
+
+### 14.3 Workstream B — A Real Planner Behind the Seam
+
+The seam is already correct. `Planner` is a one-method interface, and both `AnimaRuntime.execute` and `DemoScript.run` accept it as a parameter — only `AnimaEngine.kt:15` hardcodes the implementation, and that becomes a constructor parameter with the heuristic as its default.
+
+```
+Planner (interface)
+├── HeuristicPlanner     offline floor, default, always available   [exists today]
+├── OnDevicePlanner      quantized Gemma via MediaPipe / LiteRT     [planned]
+└── CloudPlanner         Gemini REST, opt-in, `cloud` flavor only   [planned]
+```
+
+- **Selection and capability gating.** A `PlannerFactory` resolves a stored preference against what is actually available: the on-device planner is offered only once a model file is present; the cloud planner exists only in the `cloud` flavor and only after explicit consent. It always falls back to the heuristic. Python's `HybridPlanner` (`anima.py:711`) is the pattern to copy — Kotlin has no such composer yet.
+- **Prompt construction.** `UIFormer.toCompactJson(nodes)` already produces a compact Agent-DOM that is byte-compatible across both runtimes, e.g. `[{"id":2,"cls":"Switch","res_id":"switch_wifi","desc":"Wi-Fi","click":true,"center":[925,280]}]`. The prompt is that, plus the goal and the step history. The response is a strict JSON action — `{"action","target_index","value"}` — the same contract `LocalLiteRTPlanner` already speaks and `test_local_litert_planner` already pins. A parse failure falls back to the heuristic rather than failing the run.
+- **Dependency reality.** The Android module has no networking library today (no OkHttp, Retrofit or Ktor) and no ML dependency. Cloud needs `HttpURLConnection` or a new dependency; on-device needs `com.google.mediapipe:tasks-genai` or the LiteRT equivalent. §11.3's zero-dependency rule is scoped to `anima.py` and **explicitly exempts the Android module**, so adding these is policy-consistent.
+
+**Build flavors keep the strongest claim provable.** Cloud planning and model download both require `INTERNET`, and adding that permission to a single universal APK would destroy the one differentiator that is currently *provable rather than promised*: the APK cannot phone home, enforced by the manifest and checkable with `grep INTERNET`. Phase 10 therefore splits the module into an `offline` flavor (no `INTERNET`, heuristic + on-device only) and a `cloud` flavor. The offline flavor remains auditable in one command.
+
+**Acceptance is cross-device, not single-device.** Workstream B is not complete when it works on the Redmi Note 11. It is complete when the same goal runs on **at least three unrelated OEM skins with no per-OEM code added**. Until that is demonstrated, the OEM problem has not been solved — it has only been moved.
+
+### 14.4 Metric Honesty: `llmCalls` → `plannerCalls`
+
+`llmCalls` counts *planner invocations*, not model calls. On-device that means a cold run currently reports `llmCalls=1` when no model exists, no network was touched, and the work was keyword matching. The warm-replay `llmCalls=0` claim is entirely true; the cold-run `1` is misleading in the other direction, and a reviewer who greps for `INTERNET` and finds nothing will rightly ask what that `1` was.
+
+Phase 10 renames the counter to `plannerCalls` and reports `llmCalls` only when a model actually ran. This makes the pitch stronger, not weaker: *a cold run costs one planner call and zero dollars, because the planner runs on the phone.*
+
+### 14.5 Decisions Log (continued from §13.3)
+
+#### 14.5.1 Pluggable Planners Rather Than One Choice
+- **Decision:** heuristic, on-device and cloud planners all sit behind the same interface, selectable at runtime, with the heuristic as the default.
+- **Rationale:** no delivery decision gets locked in before the distribution question (§13 / production readiness) is settled, and the architecture is visible rather than hidden behind a hardcoded field.
+
+#### 14.5.2 Build Flavors to Preserve the Zero-Network Property
+- **Decision:** `offline` and `cloud` product flavors; the `offline` flavor never declares `INTERNET`.
+- **Rationale:** "no network" is currently provable in one grep. A universal APK carrying `INTERNET` for an optional feature would reduce that to a promise, and promises are what §13.1 and §14.1 are about correcting.
+
+#### 14.5.3 Autonomous Cold Runs, Bounded
+- **Decision:** a new flow is learned autonomously up to a step budget, not confirmed step-by-step.
+- **Rationale:** the compiled skill is available immediately and the demo is uninterrupted. Safety comes from the budget, no-progress and cycle aborts, the existing biometric HITL guard, and the new destructive-action guard — not from asking the user to approve every tap.
+
+#### 14.5.4 An Incomplete Flow Is Never Compiled
+- **Decision:** trajectories that abort are reported and discarded.
+- **Rationale:** §13.7 — a skill that fires wrongly succeeds incorrectly, which costs more trust than failing visibly.
+
+#### 14.5.5 Device-Agnosticism Is the Acceptance Bar
+- **Decision:** Phase 10 is not complete until a goal runs on ≥3 unrelated OEM skins with no per-OEM code.
+- **Rationale:** every Phase 9 planner rule was fitted to one MIUI device. Without a cross-device bar, Phase 10 would produce a second set of device-specific rules and call it generalisation.

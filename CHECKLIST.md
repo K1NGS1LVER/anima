@@ -1,10 +1,14 @@
-# Phase 9 Checklist
+# Checklist
 
 > A box gets ticked **only** when its verification command passes on this machine. No box is ticked on the strength of "the code looks right" — that is exactly how Phases 5–6 came to be marked complete for a module that had never been compiled.
 >
 > Context: [PLAN.md](PLAN.md) · Running log: [CURRENT_PROGRESS.md](CURRENT_PROGRESS.md)
 
+**Phase 9 (shipped)** is below. **[Phase 10 (planned)](#phase-10--multi-step-learning--device-agnostic-planning)** is at the end.
+
 Run `source android/env.sh` before any Gradle or ADB command below.
+
+# Phase 9 — Buildable APK & On-Device Engine ✅
 
 ## Step 0 — Python correctness fixes
 
@@ -93,3 +97,75 @@ Run `source android/env.sh` before any Gradle or ADB command below.
 - [x] `android/README.md`: real build/run/permission instructions
 - [x] `README.md`: APK quickstart
 - [x] `CONTRIBUTING.md`: pointer to these three docs
+
+
+---
+
+# Phase 10 — Multi-Step Learning & Device-Agnostic Planning
+
+📋 **Planned, not started.** Nothing below is implemented. Full spec: [dev_plan.md §14](dev_plan.md). Plan: [PLAN.md](PLAN.md).
+
+Same rule as Phase 9: a box is ticked only when its command passes, never because the code looks right.
+
+## A1 — The cold loop
+
+- [ ] `planStep` grows a `history` argument in both runtimes; heuristic ignores it but will not re-tap an element it already used
+- [ ] `PlannedAction` / the Python tuple carries a terminal `done` action
+- [ ] `AnimaRuntime.coldCompile` (Kotlin) and the cold tail of `AnimaRuntime.run` (Python) iterate instead of compiling one step
+- [ ] `stepsExecuted` / `steps_executed` derived from the trajectory, not the hardcoded `1` at `anima.py:1295` and `AnimaRuntime.kt:201`
+- [ ] Kotlin `ExecutionResult` gains `stepsVerified`, matching Python
+- [ ] Screen-signature function ported to Kotlin (Python: `PageTransitionGraph.compute_screen_signature`, `anima.py:869`) — **no Kotlin equivalent exists today**
+- [ ] Decision recorded on whether the loop covers Python's visual-fallback compile site (`anima.py:1227`), which Kotlin lacks entirely
+- [ ] **A single goal compiles a genuine multi-step skill** — `make test-all` asserts `len(skill.steps) > 1` from one `run()` call
+- [ ] That skill replays at 0 planner calls — asserted in both runtimes
+- [ ] Cross-runtime test extended to a 2+-step skill — `./gradlew :app:testDebugUnitTest`
+
+## A2 — Loop guards (none of these are optional)
+
+- [ ] Step budget enforced and surfaced in the result — test drives a fixture that never completes
+- [ ] No-progress abort after two consecutive unverified steps — test
+- [ ] Cycle detection on a repeated screen signature — test drives a fixture that loops between two screens
+- [ ] **Destructive-action guard**: Delete / Remove / Pay / Buy / Send / Confirm require HITL regardless of budget — test asserts the run halts rather than taps
+- [ ] An aborted trajectory is **never** saved to the skill library — test asserts the DB is unchanged after an abort
+- [ ] Biometric HITL still halts inside the loop, not just on the first step — test
+
+## A3 — Demo and E2E coverage
+
+- [ ] `DemoDevice` extended to a multi-screen flow (model it on `StatefulMockDevice` in `test_e2e.py`) — today it is one static screen and would exercise the loop for a single iteration
+- [ ] 3-act demo still passes with the multi-step loop — `make demo` and `./gradlew :app:testDebugUnitTest`
+- [ ] `test_e2e_multi_screen_journey` redesigned: it currently models a journey as three independent goals, which is a different flow model from one goal spanning N steps
+
+## B1 — Planner seam
+
+- [ ] `AnimaEngine` takes `Planner` as a constructor parameter (today `AnimaEngine.kt:15` hardcodes `HeuristicPlanner()`)
+- [ ] `PlannerFactory` resolves a stored preference against actual availability, always falling back to heuristic
+- [ ] Planner choice surfaced in `MainActivity` with the active planner visible at run time
+- [ ] Kotlin composer mirroring Python's `HybridPlanner` (`anima.py:711`) — model first, heuristic on any failure
+
+## B2 — On-device model
+
+- [ ] Model dependency added to `android/app/build.gradle.kts` (no ML or HTTP dependency exists there today)
+- [ ] Prompt built from `UIFormer.toCompactJson(nodes)` + goal + history
+- [ ] Strict JSON response parsed to `PlannedAction`; malformed output falls back to heuristic — test with a deliberately broken response
+- [ ] Model acquisition flow with explicit consent and a visible size warning
+- [ ] Inference works with the device in airplane mode — the proof that it is genuinely on-device
+
+## B3 — Cloud planner and flavors
+
+- [ ] `offline` / `cloud` product flavors build — `./gradlew :app:assembleOfflineDebug :app:assembleCloudDebug`
+- [ ] **`offline` flavor declares no `INTERNET` permission** — `grep -c INTERNET` on its merged manifest returns 0
+- [ ] Cloud planner gated behind explicit consent, off by default
+- [ ] CI builds both flavors
+
+## B4 — Device-agnostic acceptance (the bar that matters)
+
+- [ ] Same goal runs on **≥3 unrelated OEM skins** (e.g. MIUI/HyperOS, One UI, Pixel stock) with **no per-OEM code added**
+- [ ] At least one run on a non-English device locale
+- [ ] Results recorded in `CURRENT_PROGRESS.md` with device names, Android versions and outcomes
+- [ ] Any per-OEM rule that proves unavoidable is documented in `dev_plan.md` §14 with the reason it could not be generalised
+
+## B5 — Metric honesty
+
+- [ ] `llmCalls` renamed `plannerCalls` across both runtimes, the HUD, `MainActivity` and the JSON contract
+- [ ] `llmCalls` reported only when a model actually ran — test asserts a heuristic cold run reports `llmCalls=0`, `plannerCalls=1`
+- [ ] README, `dev_plan.md` and the scoreboard updated to the new wording

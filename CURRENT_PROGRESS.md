@@ -5,16 +5,20 @@
 
 ## Where to pick up
 
-**Phase 9 is complete and verified on hardware.** `dev-sam` is pushed, CI is green, and the APK drives real Settings screens on a physical Redmi Note 11.
+**Phase 9 is shipped.** `dev-sam` is pushed, CI green, APK verified on a physical Redmi Note 11 driving real Settings screens.
 
-**Next actions, in order:**
-1. Exercise the edge-glow overlay and the "Take Control" kill-switch by hand — still the only untested device path, and it needs human eyes on the screen.
-2. Open a PR from `dev-sam` into `main` when the team is ready.
-3. Consider extending `IntentRouter` beyond system settings (third-party app launch by label) — the same fast-path idea, wider reach.
+**Phase 10 is planned and documented, not started** — see [PLAN.md](PLAN.md) and [dev_plan.md §14](dev_plan.md). Two workstreams:
+
+1. **Multi-step cold planning.** The cold path compiles exactly one step today (`anima.py:1271`, `AnimaRuntime.kt:179`), so no flow can ever be learned. Replace it with a bounded plan→act→observe loop. Start here — it is useful with no model at all, and it defines the interface changes Workstream B depends on.
+2. **A real planner behind the seam.** `AnimaEngine.kt:15` hardcodes the heuristic. Every planner rule from Phase 9 is fitted to one MIUI device; a model reading the pruned Agent-DOM is what makes this work on any make and model.
+
+**Order of work:** loop → multi-screen demo fixture → destructive-action guard → `PlannerFactory` + flavors → on-device model → cross-OEM validation.
+
+**Do not skip the cross-OEM bar.** Phase 10 is not complete when it works on the Redmi; it is complete when the same goal runs on three unrelated skins with no per-OEM code. Without that bar this phase just produces a second set of device-specific rules.
 
 **Grab a build without a toolchain:** `gh run download --branch dev-sam --name anima-debug-apk`.
 
-**Demo tip:** run the two goals back to back — "turn on bluetooth" then "toggle wifi". That sequence is what exposed the wrong-screen bug, and it is now the strongest live proof that the agent knows which screen it is on.
+**Demo tip:** run "turn on bluetooth" then "toggle wifi" back to back — the sequence that exposed the wrong-screen bug, and the strongest live proof the agent knows which screen it is on.
 
 ## Environment (reproduce with `source android/env.sh`)
 
@@ -31,6 +35,20 @@
 One-time setup on a fresh machine is documented at the top of `android/env.sh`.
 
 ## Log
+
+### 2026-09-18 — Phase 10 planned and documented (no code)
+
+Wrote the next phase into the repo: `dev_plan.md` §14 (full spec, decisions, risks), `PLAN.md`, Phase 10 sections in `CHECKLIST.md`, and this entry. No implementation landed — deliberately.
+
+Two audits drove it. The cold path compiles **exactly one step** in both runtimes, so multi-step flows are unreachable by construction and every multi-step skill in the repo is a test fixture. And the APK contains **no model at all**: `AnimaEngine.kt:15` hardcodes the heuristic planner, whose every rule was hand-fitted to one MIUI phone during Phase 9 — punctuation-stripping for "Wi-Fi", the actionable-ancestor redirect, the toggle-row rule that exists only because MIUI renders a switch as a `CheckBox`. That generalises to the phones we tested, not to any make and model.
+
+**Three false claims corrected in the same pass** — the same failure mode as "Phases 5–6 ✅ COMPLETE" for a module that had never compiled:
+
+- `README.md` said the Kotlin tests validate "on-device LiteRT execution". No such test exists; nothing LiteRT exists in the APK.
+- `dev_plan.md` §4 said the APK "houses the LiteRT-LM model runtime". It does not.
+- Phase 6 was marked ✅ COMPLETED for on-device LiteRT-LM inference. The real artifact is the **Python** `LocalLiteRTPlanner`, an HTTP client for a model server you run yourself — not an embedded runtime, and with **no Kotlin equivalent**. Now marked ⚠️ PARTIAL with the honest scope.
+
+Phase 10 is exactly the work that would make those claims true, so they are now written as intent rather than achievement.
 
 ### 2026-09-18 — Two bugs the hermetic suite could never have caught
 

@@ -69,7 +69,7 @@ make e2e
 # Run all 25 hermetic tests:
 make test-all
 ```
-*25 hermetic Python tests (19 unit + 6 E2E), plus 76 Kotlin engine tests, validating multi-screen navigation, dynamic parameter slots, popup auto-dismissal, UIFormer compression, on-device LiteRT execution, and security injection rejection.*
+*25 hermetic Python tests (19 unit + 6 E2E), plus 76 Kotlin engine tests, validating multi-screen navigation, dynamic parameter slots, popup auto-dismissal, UIFormer compression, cross-runtime skill portability, and security injection rejection.*
 
 ### 2. The Hackathon Demo — One Command
 ```zsh
@@ -134,6 +134,17 @@ CI builds the APK on every push and uploads it as an artifact, so you can grab a
 ```zsh
 gh run download --branch dev-sam --name anima-debug-apk
 ```
+
+---
+
+## 🗺 Roadmap — what is not done yet
+
+Anima replays compiled skills well. It does not yet *learn* well, and the docs say so rather than letting you find out:
+
+- **The cold path compiles exactly one step.** Multi-step flows ("set an alarm for 7:30") cannot currently be learned — only replayed from hand-written fixtures. Phase 10 replaces the one-shot compile with a bounded plan→act→observe loop.
+- **The APK contains no model.** Grounding is keyword matching against on-screen labels, and its rules were fitted to one OEM skin. Phase 10 puts a real planner behind the existing `Planner` interface — on-device Gemma by preference, so the zero-network property survives — which is what makes it work across any make and model.
+
+See [PLAN.md](PLAN.md) and [dev_plan.md §14](dev_plan.md) for the full plan.
 
 ---
 
