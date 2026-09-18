@@ -9,11 +9,21 @@
 
 Read in this order: [PLAN.md](PLAN.md) → [KNOWLEDGE_PACK.md](KNOWLEDGE_PACK.md) (the contract) → your section of [ASSIGNMENTS.md](ASSIGNMENTS.md).
 
-**Day 0 is done, except the fixtures.** The seven Gradle modules exist and build, the pack schema is frozen in code, the module interfaces are agreed, minSdk is 30, and all five feature branches are pushed off `dev`. Check out your branch and start.
+**Day 0 is done and three modules are merged into `dev`.** Seven Gradle modules, pack schema frozen in code, interfaces agreed, minSdk 30, five feature branches live.
 
-**The one thing still blocking people: Jacob's golden fixture packs in `fixtures/packs/`.** Jiya and Neethu are waiting on nothing else. That is the highest-priority task on the project right now.
+| Module | Owner | State on `dev` |
+| :--- | :--- | :--- |
+| `:core`, `:store` | Jacob | ✅ merged — stable IDs, canonical JSON, compaction, SQLite, `.animapack`, golden fixture |
+| `:capture`, `:explore` | Samuel | ✅ merged — screenshots, multi-window, scroll, the autonomous crawler |
+| `:understand` | Daniel | ✅ merged — cloud / local / heuristic backends with caching |
+| `:design` | Jiya | ⬜ not started — `feat/design-extract` is fast-forwarded to `dev` and ready |
+| `:app` | Neethu | ⬜ not started — `feat/app-ui` is fast-forwarded to `dev` and ready |
 
-**Samuel: set branch protection on `main` in GitHub** — it is a repo setting, not a commit, so it could not be done from here.
+**Jiya and Neethu are unblocked.** `fixtures/packs/golden.animapack` exists, so both of you can build and test against real pack data without the crawler running at all. Your branches already sit on the integrated `dev`; just check out and start.
+
+**Next for Samuel: wire the scan end to end** — `Explorer` → `ScreenUnderstander` → `PackRepository` — and then run it on the Redmi. Every remaining hardware claim in `CHECKLIST.md` depends on that.
+
+**Samuel: set branch protection on `main` in GitHub** — a repo setting, not a commit, so it could not be done from here.
 
 **Team and branches**
 
@@ -46,6 +56,20 @@ Read in this order: [PLAN.md](PLAN.md) → [KNOWLEDGE_PACK.md](KNOWLEDGE_PACK.md
 One-time setup on a fresh machine is documented at the top of `android/env.sh`.
 
 ## Log
+
+### 2026-09-18 — Samuel: integration pass, three modules merged into `dev` (`32c664c`)
+
+`feat/explorer`, `feat/knowledge-store` and `feat/understanding` are all on `dev`. Whole suite green after each merge, debug APK builds.
+
+- **149 JVM tests** — 78 `:core`, 33 `:explore`, 38 `:understand`.
+- **APK is 22.3 MB**, up from 12.0 MB when only my modules were in. The budget in `RELEASE_READINESS.md` is 30 MB, so there is headroom but not a lot of it; worth watching as `:design` and `:app` land.
+- One conflict, in `CURRENT_PROGRESS.md`, where Daniel and I both prepended an entry for the same day. Kept both.
+
+**One thing I changed on someone else's behalf, recorded rather than done quietly.** `feat/knowledge-store` brought in a rewrite of `NoAndroidImportsTest` that began:
+
+    if (!coreDir.exists()) return   // skip if run from different context
+
+A guard test that reports success precisely when it cannot find the thing it guards goes green forever and protects nothing — the same failure mode as Phases 5–6 being marked complete for a module that had never been compiled. Restored in `458c9dd`: assert the working directory, list every offender with file and line instead of failing on the first, and match the import statement rather than the substring so a comment mentioning `android.*` is not a false positive. The reasoning now lives in the file.
 
 ### 2026-09-18 — Understanding module: full chain implemented and hermetic-tested (`feat/understanding`)
 

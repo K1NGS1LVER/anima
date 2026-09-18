@@ -115,7 +115,7 @@ Run `source android/env.sh` before any Gradle or ADB command below.
 - [x] `./gradlew build` green after the split
 - [x] **Pack schema v1 frozen** and committed — `core/src/main/kotlin/io/agents/anima/core/Pack.kt`, matching [KNOWLEDGE_PACK.md](KNOWLEDGE_PACK.md)
 - [x] Stable-ID spec agreed (SHA-256 structural hash, dynamic content excluded) — [KNOWLEDGE_PACK.md](KNOWLEDGE_PACK.md); implementation is Jacob's
-- [ ] Golden fixture packs in `fixtures/packs/` — **Jacob, still outstanding. Jiya and Neethu are blocked on this and nothing else.**
+- [x] Golden fixture packs in `fixtures/packs/` — `golden.animapack` shipped; **Jiya and Neethu are unblocked**
 - [x] Module interfaces agreed (signatures only) — `core/src/main/kotlin/io/agents/anima/core/Contracts.kt`
 - [x] minSdk decision recorded (26 -> 30 for `takeScreenshot()`) — `android/build.gradle.kts`, one place, not seven
 - [x] `dev` branch created and five feature branches pushed off it — `git branch -a`
