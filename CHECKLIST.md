@@ -6,7 +6,7 @@
 
 **Phase 9 (shipped)** is below as history. The **pivot workstreams** — what everyone is actually building now — are at the end.
 
-Contract: [KNOWLEDGE_PACK.md](KNOWLEDGE_PACK.md) · Briefs: [ASSIGNMENTS.md](ASSIGNMENTS.md)
+Contract: [KNOWLEDGE_PACK.md](KNOWLEDGE_PACK.md) · Briefs: [ASSIGNMENTS.md](ASSIGNMENTS.md) · Shipping: [RELEASE_READINESS.md](RELEASE_READINESS.md)
 
 Run `source android/env.sh` before any Gradle or ADB command below.
 
@@ -254,3 +254,61 @@ Run `source android/env.sh` before any Gradle or ADB command below.
 - [ ] Login/OTP gate traversed autonomously with test credentials
 - [ ] Retired: `DemoDevice`, `DemoScript`, 3-act demo, `run_benchmark`, `IntentRouter`, `TaskerReceiver`, skill-replay CLI flags
 - [ ] README reflects the product, not the old task-agent framing
+
+# Display & release readiness
+
+Full detail and the T-3/T-2/T-1 schedule: [RELEASE_READINESS.md](RELEASE_READINESS.md).
+
+## Performance budgets (measured on the demo device)
+
+- [ ] Scan of a ~30-screen app completes in <= 4 minutes
+- [ ] First screen appears in the viewer within 15 s (results stream, not batch)
+- [ ] App cold start <= 2 s
+- [ ] Viewer map pan and list scroll hold 60 fps
+- [ ] No OOM with 40 screens and screenshots held
+- [ ] APK <= 30 MB excluding any downloaded model
+
+## Devices
+
+- [ ] Primary demo device set up: permissions, battery optimisation off, timeout raised, DND on
+- [ ] **Backup device set up identically and rehearsed on**
+- [ ] Third device (different OEM) proves output generality
+- [ ] Target apps installed and logged in on every device
+
+## Failure paths — rehearse, don't assume
+
+- [ ] Scan runs with **wifi actually off** (on-device fallback), not simulated
+- [ ] Saved packs for 2-3 apps present on both devices and openable in the viewer
+- [ ] Every stall path shows a visible state; nothing hangs silently
+- [ ] Safety envelope holds on an app the team has never scanned before
+- [ ] Crash handler writes a readable log; **in-app log export works**
+
+## Schedule
+
+- [ ] **T-3** feature freeze; full merge to `dev`; CI green; end-to-end scan on primary device
+- [ ] **T-2** regression pass by every module owner against the merged build, not their branch
+- [ ] **T-1** full rehearsal twice — once online, once offline, timed
+- [ ] **T-1** `main` tagged, release APK built and installed from the release build
+- [ ] **T** no code changes
+
+## Release build
+
+- [ ] `versionCode` / `versionName` set deliberately
+- [ ] `./gradlew :app:assembleRelease` produces an installable APK
+- [ ] **Release build installed and exercised** — R8 strips what debug keeps
+- [ ] R8 rules verified for every reflective entry point (services, receivers, JSON models)
+- [ ] Icon, app name, launch screen final
+- [ ] Store assets: screenshots, descriptions, feature graphic
+- [ ] Privacy policy screen
+- [ ] Every declared permission is used and explained in-app
+- [ ] No screen-content logging in release
+- [ ] Accessibility sweep on our own UI (TalkBack, 48dp, 200% font)
+- [ ] First run tested on a **freshly wiped install**
+
+## Presentation
+
+- [ ] Narrator and driver assigned; three on standby for domain questions
+- [ ] Flow rehearsed end to end within the time limit
+- [ ] Rebuild comparison and journey replay reached before time runs out
+- [ ] `scan twice && diff` demonstrated as the stability proof
+- [ ] Answers ready for Play Store policy, third-party ToS, and known gaps

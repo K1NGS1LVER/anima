@@ -2,7 +2,7 @@
 
 > **The project pivoted.** Anima was a task-execution agent (goal → taps → compiled skill). It is now a system that explores an unfamiliar Android app hands-off and emits a structured, stable, compact **App Knowledge Pack**.
 >
-> Contract: [KNOWLEDGE_PACK.md](KNOWLEDGE_PACK.md) · Who does what: [ASSIGNMENTS.md](ASSIGNMENTS.md) · Status: [CHECKLIST.md](CHECKLIST.md) · Architecture SSOT: [dev_plan.md](dev_plan.md) §15
+> Contract: [KNOWLEDGE_PACK.md](KNOWLEDGE_PACK.md) · Who does what: [ASSIGNMENTS.md](ASSIGNMENTS.md) · Status: [CHECKLIST.md](CHECKLIST.md) · Shipping & demo: [RELEASE_READINESS.md](RELEASE_READINESS.md) · Architecture SSOT: [dev_plan.md](dev_plan.md) §15
 
 ## The problem
 
@@ -87,6 +87,12 @@ Split the modules, **freeze the pack schema**, ship golden fixtures, agree inter
 - **Scanning third-party apps** raises per-app ToS questions. Fine for owned and test apps; worth a sentence in the pitch rather than a surprise from a judge.
 - **LLM non-determinism vs. stability.** Mitigated by caching every model result by structural hash. If that cache is wrong, the headline requirement fails.
 - **Crawler safety.** An unattended agent inside a banking app is the real risk in this project. Deny-list, package boundary, budgets and kill switch are all mandatory, not polish.
+
+## The bar: display-ready
+
+Not "it works on my machine with the right app open". **A judge takes the phone, picks an app we did not choose, taps Scan, and it behaves** — and when it cannot do something it says so instead of hanging.
+
+That is a different bar from "the crawler works", and it is what *Execution & Working Prototype* actually measures. Performance budgets, the device matrix, failure paths, the freeze/rehearsal schedule and the release checklist live in [RELEASE_READINESS.md](RELEASE_READINESS.md).
 
 ## Verification
 

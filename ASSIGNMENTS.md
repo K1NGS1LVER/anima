@@ -2,7 +2,9 @@
 
 > Five people, five modules, five branches. Read your section, read [KNOWLEDGE_PACK.md](KNOWLEDGE_PACK.md), and you have everything you need. After Day 0, nobody blocks anybody.
 >
-> Plan: [PLAN.md](PLAN.md) · Contract: [KNOWLEDGE_PACK.md](KNOWLEDGE_PACK.md) · Status: [CHECKLIST.md](CHECKLIST.md)
+> Plan: [PLAN.md](PLAN.md) · Contract: [KNOWLEDGE_PACK.md](KNOWLEDGE_PACK.md) · Status: [CHECKLIST.md](CHECKLIST.md) · Shipping & demo: [RELEASE_READINESS.md](RELEASE_READINESS.md)
+>
+> **Everyone**: the last three days (freeze → regression pass → rehearsal) are in [RELEASE_READINESS.md](RELEASE_READINESS.md), and your module's regression pass is your own job.
 
 ## The rule that keeps us out of each other's way
 
@@ -237,3 +239,11 @@ A person who has never seen the project can install the APK, grant permissions, 
 ## Integration
 
 Samuel merges to `dev` and ties the system together. Daily: rebase, run your module's tests, push. If you are blocked on another module, use the fixtures — that is what they are for.
+
+---
+
+## Everyone — the last three days
+
+Feature freeze at **T-3**, regression pass at **T-2**, **two full rehearsals at T-1** (one with wifi off). Your module's regression pass against the *merged* build — not your branch — is yours. Details and the release checklist: [RELEASE_READINESS.md](RELEASE_READINESS.md).
+
+The rehearsal is the highest-value hour in the schedule. Teams that skip it find their bugs in front of judges.
