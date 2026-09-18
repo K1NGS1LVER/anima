@@ -158,26 +158,26 @@ Run `source android/env.sh` before any Gradle or ADB command below.
 
 # Daniel — Understanding · `feat/understanding`
 
-- [ ] `ScreenUnderstander` interface defined in `:core` and agreed
-- [ ] `HeuristicUnderstander` — no model, no network, always available
-- [ ] `CloudVlm` backend (Gemini)
-- [ ] `OnDeviceLlm` backend (Gemma via MediaPipe/LiteRT)
-- [ ] Fallback composition — model first, heuristic on any failure
-- [ ] Strict JSON validation + repair; malformed output never breaks a scan — test with a deliberately broken response
-- [ ] **Results cached by structural hash**; rescan reuses prior text verbatim
-- [ ] Temperature 0 across backends
-- [ ] Screen `name`, `purpose`, `kind` produced
-- [ ] Per-element `semantic` produced
-- [ ] **Form-field typing with no roles and no labels** (email / phone / OTP / amount / date / password)
-- [ ] Journey naming and summarization from graph paths
-- [ ] `tone_of_voice` classification
-- [ ] Prompt built from the pruned Agent-DOM, not the raw tree — token budget asserted
+- [x] `ScreenUnderstander` interface defined in `:core` and agreed
+- [x] `HeuristicUnderstander` — no model, no network, always available
+- [x] `CloudVlm` backend (Gemini)
+- [ ] `OnDeviceLlm` backend (Gemma via MediaPipe/LiteRT) ← deferred by decision; `LocalLlm` (local endpoint client) shipped instead
+- [x] Fallback composition — model first, heuristic on any failure
+- [x] Strict JSON validation + repair; malformed output never breaks a scan — test with a deliberately broken response
+- [x] **Results cached by structural hash**; rescan reuses prior text verbatim
+- [x] Temperature 0 across backends
+- [x] Screen `name`, `purpose`, `kind` produced
+- [x] Per-element `semantic` produced
+- [x] **Form-field typing with no roles and no labels** (email / phone / OTP / amount / date / password)
+- [x] Journey naming and summarization from graph paths
+- [x] `tone_of_voice` classification
+- [x] Prompt built from the pruned Agent-DOM, not the raw tree — token budget asserted
 
 ## Done when
 
-- [ ] An unlabelled, role-less screen still yields a correct purpose and correct field types
-- [ ] Two runs over the same screens produce identical text
-- [ ] Scan completes with the model backend forced to fail
+- [x] An unlabelled, role-less screen still yields a correct purpose and correct field types
+- [x] Two runs over the same screens produce identical text
+- [x] Scan completes with the model backend forced to fail
 
 # Jacob — Knowledge store · `feat/knowledge-store`
 
