@@ -226,22 +226,50 @@ These three are load-bearing. Two of them are correctness bugs in code that is a
 
 # Jiya — Design & brand extraction · `feat/design-extract`
 
+Verified with `cd android && ./gradlew :design:testDebugUnitTest` (35 tests, green).
+Fixtures are three real captures — Settings, Clock, Contacts — in
+`android/design/src/test/resources/fixtures/`.
+
 - [ ] Color palette quantized from screenshots, cross-checked against theme attributes
-- [ ] Colors classified (primary / on-primary / surface / background / error), not a raw histogram
+      — quantizing and classification are done; the **theme-attribute cross-check is not
+      possible from a `uiautomator` dump**, which carries no theme data. Needs either the
+      accessibility service to read them or a VLM pass.
+- [x] Colors classified (primary / on-primary / surface / background / error), not a raw histogram
+      — read through the node tree: the window colour comes from the frame's edge ring, so a
+      screen of cards does not report its card colour as the background.
 - [ ] Typography roles extracted (family, size, weight), VLM fallback where absent
-- [ ] Base spacing unit and radius scale inferred from bounds
-- [ ] Component catalog with `seen_on` counts (button, card, input, list row)
-- [ ] Light/dark token diff from both passes
-- [ ] `tone_of_voice` inputs collected from app copy
-- [ ] Emits a schema-valid `design_system` section
-- [ ] **Deterministic**: the same screenshot produces identical tokens on repeat runs
-- [ ] Unit tests run from a static image + node list, no device
+      — **size** is measured and calibrated (Settings reads 16sp/14sp, Material 3's own
+      values). **Family and weight are reported null**: neither is in an accessibility dump,
+      and inventing them would be a fabrication in a pack whose value is being trustworthy.
+      The VLM fallback is the open half of this box.
+- [x] Base spacing unit and radius scale inferred from bounds
+      — spacing from bounds; radius from pixel curvature, since radius is a drawable
+      property and not in the tree at all.
+- [x] Component catalog with `seen_on` counts (button, card, input, list row)
+- [ ] Light/dark token diff from both passes — blocked on **G4**. Every fixture was captured
+      in light mode, and the extractor emits only the modes it actually saw rather than
+      inventing a dark palette from light screens.
+- [ ] `tone_of_voice` inputs collected from app copy — deliberately left to
+      `ScreenUnderstander.toneOfVoice`; two answers to one question in one pack is worse
+      than one.
+- [ ] Emits a schema-valid `design_system` section — the `DesignSystem` object is built and
+      populated; serialization and schema validation live in `:store`.
+- [x] **Deterministic**: the same screenshot produces identical tokens on repeat runs
+      — no RNG anywhere, integer arithmetic, explicit tie-breaks. Also asserted against
+      reversed crawl order.
+- [x] Unit tests run from a static image + node list, no device
+      — including PNG decoding: `BitmapFactory` returns null under
+      `unitTests.isReturnDefaultValues`, so the decoder is pure Kotlin over `java.util.zip`.
 
 ## Rebuild test (judging criterion)
 
-- [ ] Renders a screen from the pack alone, no screenshot used
-- [ ] Side-by-side comparison view with the original
-- [ ] **2-3 screens rebuilt and recognizable**
+- [x] Renders a screen from the pack alone, no screenshot used
+      — enforced by the type: `RebuildScreen` has no screenshot field, so the renderer
+      cannot reach the original pixels even by accident.
+- [x] Side-by-side comparison view with the original
+      — `build/reports/rebuild/index.html`, self-contained, opens in a browser.
+- [x] **2-3 screens rebuilt and recognizable** — three. Settings is the strongest: card
+      grouping, row rhythm and the title/summary hierarchy all land.
 
 # Neethu — Product app & viewer · `feat/app-ui`
 
