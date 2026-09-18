@@ -38,7 +38,7 @@ Everything in this table was checked against the merged `dev` on 2026-09-18, not
 
 Worth stating plainly, because two of them are load-bearing for the headline judging criteria.
 
-**1. Nothing is wired end to end.** `Explorer` produces a `ScanOutcome`. `HybridUnderstander` produces a `ScreenProfile`. `KnowledgeStore` accepts a `KnowledgePack`. Nothing turns the first into the third. There is no `ScanService`, no orchestrator, and no code path that has ever produced a real `KnowledgePack`. **This is the critical path and it is Samuel's.**
+**1. ✅ Fixed — `ScanOrchestrator` + `ScanService` now exist and are wired together.** `Explorer` → `ScreenUnderstander` → `KnowledgePack` → `PackRepository.save()` is a real, tested code path (`ScanOrchestrator`, 7 tests including two-scans-produce-equal-packs). `ScanService` runs it as a foreground service and saves the result. **Not yet proven on a device** — no phone was attached this session. A real remaining gap found while building this: `PackRepository.save()` has no parameter for screenshot bytes; `ScanOrchestrator` returns them separately (`ScanResult.screenshots`) rather than dropping them, and `ScanService` logs a warning when a scan produces screenshots with nowhere to persist them. Jacob: this needs a home in `:store`.
 
 **2. `KnowledgeStore` does not persist anything.** `save()` is an empty body with a comment describing what it would do; `load()` and `latest()` return `null`. So today a scan cannot be reopened, two scans cannot be diffed, and the viewer has nothing to load. The demo's stated fallback — "open a previously saved pack" — does not exist yet. **Jacob's first task, above everything else.**
 
@@ -110,9 +110,9 @@ Checking that a file exists is not checking that it is worth anything. The gate 
 
 You are the critical path. Everything else in P1 is parallel; this is not.
 
-### S1. `ScanOrchestrator` — **do this first, before anything else**
+### S1. `ScanOrchestrator` — ✅ done
 
-New file, `:explore`. This is the thing that does not exist.
+New file, `:explore`. This was the thing that did not exist — nothing turned a `ScanOutcome` into a `KnowledgePack`. It does now.
 
 ```kotlin
 class ScanOrchestrator(
@@ -136,17 +136,17 @@ It must:
 
 **Done when:** a unit test drives the orchestrator over the `FakeApp` with a stub understander and asserts a complete `KnowledgePack` comes out, and that **two runs produce identical `toCanonicalJson()` output**. That test is the headline acceptance criterion and it can pass on a laptop.
 
-### S2. `ScanService` — a foreground service
+### S2. `ScanService` — ✅ done
 
-New file, `:capture` or `:app`-facing but owned by you. A four-minute scan on a background thread will be killed by the system; it needs a foreground service with a notification, and the notification needs a **Stop** action wired to the same abort flag as the overlay kill switch.
+Landed in `:explore` (not `:capture` or `:app` — the dependency direction only allows it there: `:explore` can see `:core` and `:capture`, and only needs `:core` interfaces for `:understand`/`:store`). A four-minute scan on a background thread will be killed by the system; it needs a foreground service with a notification, and the notification needs a **Stop** action wired to the same abort flag as the overlay kill switch.
 
 - `startForeground` with the existing `specialUse` type.
 - Progress in the notification: screens found, elapsed.
 - Abort from notification, from `FloatingOverlayService`, and on service destruction.
 
-### S3. `ScanController` — the API Neethu builds against (**publishes G6**)
+### S3. `ScanController` — ✅ done, gate **G6** is open
 
-A thin, lifecycle-safe surface: `start(pkg, budget)`, `pause()`, `stop()`, and an observable stream of `ScanListener` events. **Publish the signature early, even before the body works** — Neethu is blocked on the shape, not the behaviour. Tell her the moment it lands.
+`ScanController` interface + `ScanUiState`/`ScanPhase` + `FakeScanController` (a scripted, deterministic implementation). **Neethu: build against `FakeScanController` now** — `pause()` is documented honestly as a graceful stop at the next screen boundary, not a true pause, since `Explorer` has a one-way kill switch rather than a resumable checkpoint. Don't build a UI that promises otherwise.
 
 ### S4. Hardware bring-up (**opens G4 and G5**)
 

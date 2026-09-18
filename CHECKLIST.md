@@ -113,7 +113,7 @@ Run `source android/env.sh` before any Gradle or ADB command below.
 
 These three are load-bearing. Two of them are correctness bugs in code that is already on `dev` and already passing its own tests. Full context and the order to fix them in: [EXECUTION_PLAN.md](EXECUTION_PLAN.md).
 
-- [ ] **Nothing is wired end to end** — `Explorer` makes a `ScanOutcome`, `HybridUnderstander` makes a `ScreenProfile`, `KnowledgeStore` takes a `KnowledgePack`, and nothing turns the first into the third. No code path has ever produced a real pack. **Samuel, critical path.**
+- [x] **Nothing is wired end to end** — fixed: `ScanOrchestrator` (`:explore`) turns `Explorer`'s `ScanOutcome` into a `KnowledgePack` via `ScreenUnderstander`/`ScreenIdentifier`, and `ScanService` runs it as a foreground service and calls `PackRepository.save()`. 7 new tests including two-scans-produce-equal-packs. **Not yet run on a device.** New gap found while fixing this: `PackRepository.save()` has no parameter for screenshot bytes — `:store`'s problem now, see `ScanOrchestrator`'s class doc.
 - [ ] **`KnowledgeStore` does not persist** — `save()` is an empty body, `load()` and `latest()` return `null`. No pack can be reopened, no two scans diffed, and the demo's saved-pack fallback does not exist. **Jacob, first.**
 - [ ] **`StableIdEngine.signature()` does not de-duplicate resource-ids** — a list screen with five rows and the same screen with six hash differently, so one screen gets two ids across scans. Passes a hand-built unit test, fails the first real rescan. **Jacob, before anything else in `:store`.**
 
@@ -155,8 +155,16 @@ These three are load-bearing. Two of them are correctness bugs in code that is a
 - [x] Novelty scoring prefers navigation over toggles and text — `explore/ExplorationPolicy.kt`
 - [x] Stop conditions: frontier exhausted, step budget, screen budget, wall-clock, novelty decay — each with its own `StopReason`
 - [x] Coverage stats emitted — `ScanOutcome` carries screens, elements, steps, frontier remaining and stop reason
-- [ ] Coverage written into `scan.coverage` of the pack — needs Jacob's assembler
+- [x] Coverage written into `scan.coverage` of the pack — `ScanOrchestrator` assembles it
 - [x] **Ordered, reproducible traversal** — `ExplorerTest.twoScansOfTheSameAppWalkItIdentically`
+
+## Crawl-to-pack (S1–S3) ✅
+
+- [x] `ScanOrchestrator` — turns one `ScanOutcome` into a `KnowledgePack`: drives `ScreenIdentifier`/`ScreenUnderstander` per screen, assigns element ids via a structural-path heuristic, resolves `leadsTo`/graph edges through `Candidate.keyFor` (extracted from `Frontier` so there's one source of truth, not two), sorts every array by id. 7 tests, including two-scans-produce-equal-packs.
+- [x] `ScanService` — foreground service, persistent notification (screens found, elapsed, current action), Stop wired to both a local flag and `AnimaAccessibilityService.shouldHalt`. Now calls `ScanOrchestrator` and `PackRepository.save()` on completion.
+- [x] `ScanController` + `FakeScanController` — publishes gate **G6**. `pause()` is documented honestly as a graceful stop, not a real pause (`Explorer` has no resumable checkpoint).
+- [ ] **New gap found, not yet fixed:** `PackRepository.save()` has no parameter for screenshot bytes. `ScanOrchestrator` returns them separately (`ScanResult.screenshots`); `ScanService` logs a warning when a scan has screenshots with nowhere to persist them. **Jacob's, in `:store`.**
+- [ ] Run on a real device — **blocked, no phone attached this session**
 
 ## Safety envelope
 

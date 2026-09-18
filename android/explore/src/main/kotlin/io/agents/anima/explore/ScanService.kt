@@ -7,12 +7,16 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import io.agents.anima.AnimaAccessibilityService
 import io.agents.anima.capture.AccessibilityExplorationDevice
+import io.agents.anima.core.AppIdentity
+import io.agents.anima.core.DeviceInfo
 import io.agents.anima.core.ElementAction
 import io.agents.anima.core.ScreenObservation
+import java.util.Locale
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -178,13 +182,43 @@ class ScanService : Service() {
             listener = notificationListener(),
             isAborted = { AnimaAccessibilityService.shouldHalt.get() || localStopRequested.get() },
         )
+        // ScanOrchestrator (S1) landed after this class was first written; this
+        // is that integration point. It owns turning the Explorer's raw
+        // ScanOutcome into a KnowledgePack -- explorer.scan() is called from
+        // inside orchestrator.scan(), so notificationListener()'s
+        // onScanFinished still fires mid-way through, before the pack exists.
+        val orchestrator = ScanOrchestrator(explorer, ScanEngineProvider.identifier, understander, repository)
 
         // Not a coroutine: :explore has no kotlinx-coroutines dependency (only
         // :capture does), and adding one just for this single background call
         // would be a new dependency for no real benefit over a plain Thread.
         scanThread = Thread({
             try {
-                explorer.scan(targetPackage)
+                val result = orchestrator.scan(appIdentityFor(targetPackage), deviceInfoFor(accessibilityService))
+                try {
+                    repository.save(result.pack)
+                    updateNotification(
+                        "Saved ${result.pack.screens.size} screen(s) to the pack",
+                        showStopAction = false,
+                    )
+                } catch (saveError: Throwable) {
+                    // The scan itself succeeded; only persistence failed. Worth a
+                    // distinct message -- "the crawl crashed" and "the crawl
+                    // finished but nothing was saved" call for different fixes.
+                    Log.e(TAG, "Scan of $targetPackage finished but saving the pack failed", saveError)
+                    updateNotification("Scan finished but saving failed -- see logs", showStopAction = false)
+                }
+                if (result.screenshots.isNotEmpty()) {
+                    // PackRepository.save() has no parameter for image bytes --
+                    // see ScanOrchestrator's class doc for the full explanation
+                    // of this gap. Logged rather than silently dropped, so it
+                    // stays visible until :store grows a place for them.
+                    Log.w(
+                        TAG,
+                        "Scan produced ${result.screenshots.size} screenshot(s) with nowhere to persist " +
+                            "them yet -- PackRepository.save() doesn't accept images.",
+                    )
+                }
             } catch (t: Throwable) {
                 Log.e(TAG, "Scan of $targetPackage crashed", t)
             } finally {
@@ -194,6 +228,36 @@ class ScanService : Service() {
             isDaemon = true
             start()
         }
+    }
+
+    /**
+     * Best-effort app metadata for [AppIdentity]. The target app could in
+     * theory be uninstalled mid-scan, or package lookup can fail for
+     * OEM-specific reasons -- a completed scan is worth keeping even with a
+     * thin identity, so this never throws past itself.
+     */
+    private fun appIdentityFor(targetPackage: String): AppIdentity = try {
+        val info = packageManager.getPackageInfo(targetPackage, 0)
+        val appInfo = packageManager.getApplicationInfo(targetPackage, 0)
+        AppIdentity(
+            packageName = targetPackage,
+            label = packageManager.getApplicationLabel(appInfo).toString(),
+            versionName = info.versionName,
+            versionCode = info.longVersionCode,
+        )
+    } catch (e: Exception) {
+        Log.w(TAG, "Could not read package info for $targetPackage; using a minimal AppIdentity", e)
+        AppIdentity(packageName = targetPackage, label = targetPackage, versionName = null, versionCode = null)
+    }
+
+    private fun deviceInfoFor(service: AnimaAccessibilityService): DeviceInfo {
+        val (width, height) = service.displaySize()
+        return DeviceInfo(
+            model = Build.MODEL ?: "unknown",
+            sdk = Build.VERSION.SDK_INT,
+            resolution = listOf(width, height),
+            locale = Locale.getDefault().toString(),
+        )
     }
 
     /**
@@ -237,14 +301,12 @@ class ScanService : Service() {
         }
 
         override fun onScanFinished(outcome: ScanOutcome) {
-            // TODO(integration): ScanOrchestrator (S1) lands separately in a
-            // parallel worktree and doesn't exist here yet. This service's job
-            // stops at producing a clean ScanOutcome; turning it into a
-            // KnowledgePack (via ScanEngineProvider.understander) and saving it
-            // (via ScanEngineProvider.repository) is the next integration step
-            // once both S1 and this land. Deliberately not guessing at
-            // ScanOrchestrator's constructor here -- that would fail to compile
-            // now and likely again on merge if the guess is wrong.
+            // Fires mid-way through handleStartAction's orchestrator.scan() call
+            // -- explorer.scan() runs inside it -- so only the raw ScanOutcome is
+            // available here, not the assembled KnowledgePack yet. That gets
+            // built and saved back in handleStartAction once orchestrator.scan()
+            // returns; this callback only updates the notification with what the
+            // crawl itself found.
             Log.i(
                 TAG,
                 "Scan finished: target=${outcome.targetPackage} screens=${outcome.screenCount} " +
