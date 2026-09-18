@@ -71,3 +71,6 @@ local.properties
 *.keystore
 captures/
 .cxx/
+
+# Agent worktrees (Claude Code isolation dirs) -- never real project content
+.claude/
