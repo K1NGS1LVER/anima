@@ -36,7 +36,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:fontFamily="monospace"
-            android:textColor="@color/indigo_500"
+            android:textColor="@color/pearl_blue"
             android:textSize="12sp"
             android:textAllCaps="true"
             tools:text="COLD_COMPILED" />

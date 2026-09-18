@@ -28,7 +28,7 @@ FORM: Native Material 3 instrument panel, operated as a vertical task sequence o
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/brand_descriptor"
-            android:textColor="@color/indigo_500"
+            android:textColor="@color/pearl_blue"
             android:textSize="11sp"
             android:textStyle="bold"
             android:letterSpacing="0.12" />
@@ -123,10 +123,10 @@ FORM: Native Material 3 instrument panel, operated as a vertical task sequence o
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/btn_enable"
-                    app:strokeColor="@color/cyan_400"
+                    app:strokeColor="@color/pearl_white"
                     app:strokeWidth="1dp"
                     app:cornerRadius="14dp"
-                    android:textColor="@color/cyan_400" />
+                    android:textColor="@color/pearl_white" />
             </LinearLayout>
 
             <!-- Row: Overlay permission -->
@@ -183,10 +183,10 @@ FORM: Native Material 3 instrument panel, operated as a vertical task sequence o
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/btn_enable"
-                    app:strokeColor="@color/cyan_400"
+                    app:strokeColor="@color/pearl_white"
                     app:strokeWidth="1dp"
                     app:cornerRadius="14dp"
-                    android:textColor="@color/cyan_400" />
+                    android:textColor="@color/pearl_white" />
             </LinearLayout>
         </LinearLayout>
 
@@ -214,8 +214,8 @@ FORM: Native Material 3 instrument panel, operated as a vertical task sequence o
                 android:layout_height="wrap_content"
                 android:layout_marginTop="14dp"
                 android:hint="@string/goal_input_hint"
-                app:boxStrokeColor="@color/cyan_400"
-                app:hintTextColor="@color/cyan_400">
+                app:boxStrokeColor="@color/pearl_white"
+                app:hintTextColor="@color/pearl_white">
 
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/et_goal"
@@ -244,7 +244,7 @@ FORM: Native Material 3 instrument panel, operated as a vertical task sequence o
                 android:enabled="false"
                 android:text="@string/btn_run"
                 android:textColor="@color/button_primary_text"
-                app:backgroundTint="@color/cyan_400"
+                app:backgroundTint="@color/pearl_white"
                 app:cornerRadius="14dp" />
         </LinearLayout>
 

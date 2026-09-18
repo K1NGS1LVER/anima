@@ -7,12 +7,12 @@
         text fields) pick up the same palette as the overlay.
     -->
     <style name="Theme.Anima" parent="Theme.Material3.DayNight.NoActionBar">
-        <item name="colorPrimary">@color/cyan_400</item>
-        <item name="colorPrimaryVariant">@color/indigo_500</item>
+        <item name="colorPrimary">@color/pearl_white</item>
+        <item name="colorPrimaryVariant">@color/pearl_blue</item>
         <item name="colorOnPrimary">@color/ink_on_pearl</item>
 
-        <item name="colorSecondary">@color/violet_500</item>
-        <item name="colorSecondaryVariant">@color/indigo_500</item>
+        <item name="colorSecondary">@color/pearl_lilac</item>
+        <item name="colorSecondaryVariant">@color/pearl_blue</item>
         <item name="colorOnSecondary">@color/ink_on_pearl</item>
 
         <item name="android:colorBackground">@color/slate_950</item>
