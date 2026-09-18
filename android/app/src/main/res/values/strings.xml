@@ -4,6 +4,7 @@
 
     <!-- Header -->
     <string name="wordmark">Anima</string>
+    <string name="brand_descriptor">AUTONOMOUS APP CARTOGRAPHER</string>
     <string name="tagline">On-device autonomous GUI agent — 0 LLM calls on repeat tasks</string>
 
     <!-- Permission gate -->

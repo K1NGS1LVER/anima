@@ -1,12 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Primary CTA background for the "RUN 3-ACT DEMO" button: cyan-to-violet brand gradient. -->
-<shape xmlns:android="http://schemas.android.com/apk/res/android"
-    android:shape="rectangle">
-    <gradient
-        android:type="linear"
-        android:angle="0"
-        android:startColor="@color/cyan_400"
-        android:centerColor="@color/indigo_500"
-        android:endColor="@color/violet_500" />
-    <corners android:radius="16dp" />
-</shape>
+<!-- Primary CTA: a disabled state plus an Android-native press ripple. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_enabled="false">
+        <shape android:shape="rectangle">
+            <solid android:color="@color/slate_700" />
+            <corners android:radius="14dp" />
+        </shape>
+    </item>
+    <item>
+        <ripple android:color="#33000000">
+            <item>
+                <shape android:shape="rectangle">
+                    <gradient
+                        android:angle="0"
+                        android:startColor="@color/indigo_500"
+                        android:centerColor="@color/pearl_peach"
+                        android:endColor="@color/pearl_mint" />
+                    <corners android:radius="14dp" />
+                </shape>
+            </item>
+        </ripple>
+    </item>
+</selector>

@@ -1,18 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Base slate scale (matches FloatingOverlayService's frosted slate-900 capsule) -->
-    <color name="slate_950">#FF020617</color>
-    <color name="slate_900">#FF0F172A</color>
-    <color name="slate_900_90">#E60F172A</color>
-    <color name="slate_800">#FF1E293B</color>
-    <color name="slate_700">#FF334155</color>
-    <color name="slate_400">#FF94A3B8</color>
-    <color name="slate_300">#FFCBD5E1</color>
+    <!-- Jet-black instrument surfaces. -->
+    <color name="slate_950">#FF000000</color>
+    <color name="slate_900">#FF0A0B0E</color>
+    <color name="slate_900_90">#E60A0B0E</color>
+    <color name="slate_800">#FF121419</color>
+    <color name="slate_700">#FF292D35</color>
+    <color name="slate_400">#FFAEB1BA</color>
+    <color name="slate_300">#FFE4E5EA</color>
 
-    <!-- Brand gradient: cyan -> indigo -> violet, exactly as used in the overlay's edge-glow -->
-    <color name="cyan_400">#FF38BDF8</color>
-    <color name="indigo_500">#FF6366F1</color>
-    <color name="violet_500">#FFA855F7</color>
+    <!-- Pearlescent controls sampled from the supplied reference. -->
+    <color name="cyan_400">#FFEFF2F6</color>
+    <color name="indigo_500">#FFBACBFF</color>
+    <color name="violet_500">#FFE8B9E8</color>
+    <color name="pearl_peach">#FFF2C2B8</color>
+    <color name="pearl_mint">#FFD4F0D9</color>
+    <color name="ink_on_pearl">#FF111217</color>
 
     <!-- Status colors -->
     <color name="green_400">#FF4ADE80</color>
