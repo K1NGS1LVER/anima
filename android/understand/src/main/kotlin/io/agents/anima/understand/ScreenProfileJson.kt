@@ -18,11 +18,6 @@ import org.json.JSONObject
  */
 object ScreenProfileJson {
 
-    data class ParseResult(
-        val profile: ScreenProfile,
-        val returnedModelKind: Boolean,
-    )
-
     fun parse(raw: String, o: ScreenObservation): ScreenProfile? {
         val obj = JsonResponse.extractObject(raw) ?: return null
         val name = JsonResponse.string(obj, "name", "screen_name") ?: return null

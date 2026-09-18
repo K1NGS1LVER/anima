@@ -54,7 +54,6 @@ object Roles {
         if (hay.matches(Regex("""[\d ]{4,8}"""))) return InputType.OTP
 
         if (Regex("""\b(pass|password|passcode|pwd|pin code|new password|confirm password|current password)\b""").containsMatchIn(hay)) return InputType.PASSWORD
-        if (Regex("""\b(pass\w*|pin)\b""").containsMatchIn(hay)) return InputType.PASSWORD
 
         if (hay.contains("@") || Regex("""\b(e-?mail|mail address|mail id)\b""").containsMatchIn(hay)) return InputType.EMAIL
         if (Regex("""\b(phone|mobile|telephone|contact number|cell)\b""").containsMatchIn(hay)) return InputType.PHONE
