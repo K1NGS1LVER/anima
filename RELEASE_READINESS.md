@@ -46,7 +46,8 @@ If a budget can't be met, degrade visibly and deliberately: stream partial resul
 
 | Role | Device | Why |
 | :--- | :--- | :--- |
-| **Primary demo** | Redmi Note 11 (MIUI, Android 13) | Already hardware-verified in Phase 9; every quirk we know about is on this device. |
+| **Primary demo** | Redmi Note 11 (MIUI, Android 13) | Hardware-verified in Phase 9; every quirk we knew about was on this device. **Unavailable during the S4 pivot bring-up — confirm before T-1, don't assume.** |
+| **Second verified device** | Samsung Galaxy M35 (One UI, Android 16 / API 36) | S4 ran here instead. Found two real bugs the Redmi never surfaced: a missing `canTakeScreenshot` capability, and `rootInActiveWindow` unreliably reporting the notification shade as active. Both fixed in `:capture`. Good evidence the crawler survives a second OEM and a much newer Android version, not just MIUI. |
 | **Backup demo** | A second phone, different OEM, fully set up and rehearsed | If the primary dies or an update breaks it mid-event. Non-negotiable. |
 | **Generality proof** | A third, ideally stock Android | Shows the output is not tuned to one skin. |
 

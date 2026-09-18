@@ -113,7 +113,7 @@ Run `source android/env.sh` before any Gradle or ADB command below.
 
 These three are load-bearing. Two of them are correctness bugs in code that is already on `dev` and already passing its own tests. Full context and the order to fix them in: [EXECUTION_PLAN.md](EXECUTION_PLAN.md).
 
-- [x] **Nothing is wired end to end** — fixed: `ScanOrchestrator` (`:explore`) turns `Explorer`'s `ScanOutcome` into a `KnowledgePack` via `ScreenUnderstander`/`ScreenIdentifier`, and `ScanService` runs it as a foreground service and calls `PackRepository.save()`. 7 new tests including two-scans-produce-equal-packs. **Not yet run on a device.** New gap found while fixing this: `PackRepository.save()` has no parameter for screenshot bytes — `:store`'s problem now, see `ScanOrchestrator`'s class doc.
+- [x] **Nothing is wired end to end** — fixed: `ScanOrchestrator` (`:explore`) turns `Explorer`'s `ScanOutcome` into a `KnowledgePack` via `ScreenUnderstander`/`ScreenIdentifier`, and `ScanService` runs it as a foreground service and calls `PackRepository.save()`. 7 new tests including two-scans-produce-equal-packs. **Run on a device (S4)** — see the Crawl-to-pack and Capture gaps sections below for what that found. New gap found while fixing this: `PackRepository.save()` has no parameter for screenshot bytes — `:store`'s problem now, see `ScanOrchestrator`'s class doc.
 - [ ] **`KnowledgeStore` does not persist** — `save()` is an empty body, `load()` and `latest()` return `null`. No pack can be reopened, no two scans diffed, and the demo's saved-pack fallback does not exist. **Jacob, first.**
 - [ ] **`StableIdEngine.signature()` does not de-duplicate resource-ids** — a list screen with five rows and the same screen with six hash differently, so one screen gets two ids across scans. Passes a hand-built unit test, fails the first real rescan. **Jacob, before anything else in `:store`.**
 
@@ -138,6 +138,11 @@ These three are load-bearing. Two of them are correctness bugs in code that is a
 # Samuel — Exploration engine · `feat/explorer`
 
 ## Capture gaps ✅
+
+Two more found on real hardware (S4), invisible to any JVM test since both need a real bound `AccessibilityService`:
+
+- [x] `android:canTakeScreenshot="true"` declared in `accessibility_service_config.xml` — without it every `takeScreenshot()` call threw `SecurityException` since the day this module was written; minSdk was raised to 30 specifically for this API and the capability was never actually requested.
+- [x] `foregroundPackage()` no longer trusts `rootInActiveWindow` alone — on a Samsung One UI / Android 16 device it persistently reported the notification shade as active over a real foreground app. Now derived from the same window enumeration `captureAllWindowNodes()` uses (topmost `TYPE_APPLICATION` window), falling back to the old behaviour only when none exists.
 
 - [x] Screenshot capture via `AccessibilityService.takeScreenshot()` — `AnimaAccessibilityService.takeScreenshotSync()`; WebP downscale to the 60 KB / 720 px budget in `capture/Screenshotter.kt`
 - [x] `isScrollable` stored on `AccessibilityNode` and `PrunedNode` (read since the first version, never kept)
@@ -164,7 +169,10 @@ These three are load-bearing. Two of them are correctness bugs in code that is a
 - [x] `ScanService` — foreground service, persistent notification (screens found, elapsed, current action), Stop wired to both a local flag and `AnimaAccessibilityService.shouldHalt`. Now calls `ScanOrchestrator` and `PackRepository.save()` on completion.
 - [x] `ScanController` + `FakeScanController` — publishes gate **G6**. `pause()` is documented honestly as a graceful stop, not a real pause (`Explorer` has no resumable checkpoint).
 - [ ] **New gap found, not yet fixed:** `PackRepository.save()` has no parameter for screenshot bytes. `ScanOrchestrator` returns them separately (`ScanResult.screenshots`); `ScanService` logs a warning when a scan has screenshots with nowhere to persist them. **Jacob's, in `:store`.**
-- [ ] Run on a real device — **blocked, no phone attached this session**
+- [x] Run on a real device — Samsung Galaxy M35 (Android 16 / API 36), not the Redmi (unavailable this session). Two real, previously-undiscoverable bugs found and fixed: screenshots always threw (`android:canTakeScreenshot` was never declared) and `foregroundPackage()` was unreliable on this OEM (`rootInActiveWindow` reported the notification shade as active over a real foreground app; fixed by deriving identity from the window enumeration `captureAllWindowNodes()` already uses). Neither is reachable by a JVM test.
+- [x] Two real scans of one app produce byte-identical `name`/`purpose`/`kind`/`signature`/`modes_seen` on every common screen — `fixtures/packs/real-settings-scan{1,2}.animapack`. 3 element labels differed anywhere, all genuinely live status-bar content (battery %, clock, notification preview), not an ID-scheme bug.
+- [ ] **Open, not root-caused:** scan *coverage* varied more than the label-only difference predicts (15 vs 11 screens, 6 in common) — real-device timing plausibly perturbs frontier tie-breaking. Not claimed as solved.
+- [ ] **Open:** exclude the status bar specifically (not all of `com.android.systemui`, which also hosts real dialogs) from element extraction, so label-level stability holds too.
 
 ## Safety envelope
 
