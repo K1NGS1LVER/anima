@@ -115,6 +115,16 @@ class FrontierTest {
     }
 
     @Test
+    fun keyForMatchesARealCandidatesOrderKey() {
+        // ScanOrchestrator recomputes this key for nodes read back out of a
+        // finished ScanOutcome, which are not backed by a live Candidate. There
+        // must be exactly one source of truth for how the key is built.
+        val c = candidate(screen = "scr_x", label = "Transfer", top = 250, action = ElementAction.TAP)
+
+        assertEquals(c.orderKey, Candidate.keyFor(c.screenId, c.node, c.action))
+    }
+
+    @Test
     fun abandoningAScreenRetiresItsActionsForGood() {
         val frontier = Frontier()
         frontier.offer(candidate(screen = "scr_dead", label = "One"))
