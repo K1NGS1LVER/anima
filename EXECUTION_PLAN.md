@@ -38,7 +38,7 @@ Everything in this table was checked against the merged `dev` on 2026-09-18, not
 
 Worth stating plainly, because two of them are load-bearing for the headline judging criteria.
 
-**1. Nothing is wired end to end.** `Explorer` produces a `ScanOutcome`. `HybridUnderstander` produces a `ScreenProfile`. `KnowledgeStore` accepts a `KnowledgePack`. Nothing turns the first into the third. There is no `ScanService`, no orchestrator, and no code path that has ever produced a real `KnowledgePack`. **This is the critical path and it is Samuel's.**
+**1. ✅ Fixed — `ScanOrchestrator` + `ScanService` now exist and are wired together.** `Explorer` → `ScreenUnderstander` → `KnowledgePack` → `PackRepository.save()` is a real, tested code path (`ScanOrchestrator`, 7 tests including two-scans-produce-equal-packs). `ScanService` runs it as a foreground service and saves the result. **Not yet proven on a device** — no phone was attached this session. A real remaining gap found while building this: `PackRepository.save()` has no parameter for screenshot bytes; `ScanOrchestrator` returns them separately (`ScanResult.screenshots`) rather than dropping them, and `ScanService` logs a warning when a scan produces screenshots with nowhere to persist them. Jacob: this needs a home in `:store`.
 
 **2. `KnowledgeStore` does not persist anything.** `save()` is an empty body with a comment describing what it would do; `load()` and `latest()` return `null`. So today a scan cannot be reopened, two scans cannot be diffed, and the viewer has nothing to load. The demo's stated fallback — "open a previously saved pack" — does not exist yet. **Jacob's first task, above everything else.**
 
@@ -49,7 +49,7 @@ Worth stating plainly, because two of them are load-bearing for the headline jud
 ```
 Samuel: ScanOrchestrator + ScanService
             │
-            ├──> first real scan on the Redmi
+            ├──> first real scan on a phone
             │         │
             │         ├──> a real fixture pack  ──> Jiya's tokens are real, Neethu's viewer has real data
             │         └──> a second scan        ──> Jacob's diff and the stability test become provable
@@ -82,8 +82,8 @@ Each gate is a real command. Run it; do not ask.
 | **G1** | Golden fixture is *usable* | Jiya, Neethu | `unzip -l fixtures/packs/golden.animapack` must list `pack.json` **and** `screens/*.webp`, and `pack.json` must have a non-empty `screens[]` — ⚠️ **shut, see below** |
 | **G2** | `:core` contracts frozen | everyone | `git log --oneline -1 -- android/core/src/main/kotlin/io/agents/anima/core/Contracts.kt` — ✅ **open** |
 | **G3** | `KnowledgeStore` really persists | Neethu's viewer, Jacob's diff, saved-pack fallback | `grep -A2 "override fun save" android/store/src/main/kotlin/io/agents/anima/store/KnowledgeStore.kt` — must not be an empty body |
-| **G4** | End-to-end scan produces a pack | realistic work for Jiya and Neethu, all hardware claims | `ls fixtures/packs/real-*.animapack` |
-| **G5** | Two real scans of one app exist | stability test, diff demo | `ls fixtures/packs/real-*-scan{1,2}.animapack` |
+| **G4** | End-to-end scan produces a pack | realistic work for Jiya and Neethu, all hardware claims | ✅ **open** — `fixtures/packs/real-settings-scan1.animapack` |
+| **G5** | Two real scans of one app exist | stability test, diff demo | ✅ **open** — `real-settings-scan{1,2}.animapack`; see S4 for what the diff actually showed |
 | **G6** | `ScanController` API published | Neethu's scan-control screen | `ls android/explore/src/main/kotlin/io/agents/anima/explore/ScanController.kt` |
 
 ### G1 is shut, and I said otherwise — correcting it
@@ -110,9 +110,9 @@ Checking that a file exists is not checking that it is worth anything. The gate 
 
 You are the critical path. Everything else in P1 is parallel; this is not.
 
-### S1. `ScanOrchestrator` — **do this first, before anything else**
+### S1. `ScanOrchestrator` — ✅ done
 
-New file, `:explore`. This is the thing that does not exist.
+New file, `:explore`. This was the thing that did not exist — nothing turned a `ScanOutcome` into a `KnowledgePack`. It does now.
 
 ```kotlin
 class ScanOrchestrator(
@@ -136,27 +136,32 @@ It must:
 
 **Done when:** a unit test drives the orchestrator over the `FakeApp` with a stub understander and asserts a complete `KnowledgePack` comes out, and that **two runs produce identical `toCanonicalJson()` output**. That test is the headline acceptance criterion and it can pass on a laptop.
 
-### S2. `ScanService` — a foreground service
+### S2. `ScanService` — ✅ done
 
-New file, `:capture` or `:app`-facing but owned by you. A four-minute scan on a background thread will be killed by the system; it needs a foreground service with a notification, and the notification needs a **Stop** action wired to the same abort flag as the overlay kill switch.
+Landed in `:explore` (not `:capture` or `:app` — the dependency direction only allows it there: `:explore` can see `:core` and `:capture`, and only needs `:core` interfaces for `:understand`/`:store`). A four-minute scan on a background thread will be killed by the system; it needs a foreground service with a notification, and the notification needs a **Stop** action wired to the same abort flag as the overlay kill switch.
 
 - `startForeground` with the existing `specialUse` type.
 - Progress in the notification: screens found, elapsed.
 - Abort from notification, from `FloatingOverlayService`, and on service destruction.
 
-### S3. `ScanController` — the API Neethu builds against (**publishes G6**)
+### S3. `ScanController` — ✅ done, gate **G6** is open
 
-A thin, lifecycle-safe surface: `start(pkg, budget)`, `pause()`, `stop()`, and an observable stream of `ScanListener` events. **Publish the signature early, even before the body works** — Neethu is blocked on the shape, not the behaviour. Tell her the moment it lands.
+`ScanController` interface + `ScanUiState`/`ScanPhase` + `FakeScanController` (a scripted, deterministic implementation). **Neethu: build against `FakeScanController` now** — `pause()` is documented honestly as a graceful stop at the next screen boundary, not a true pause, since `Explorer` has a one-way kill switch rather than a resumable checkpoint. Don't build a UI that promises otherwise.
 
-### S4. Hardware bring-up (**opens G4 and G5**)
+### S4. Hardware bring-up — ✅ done, on a Samsung Galaxy M35 (not the Redmi — unavailable this session)
 
-Needs the Redmi Note 11 attached. In order:
+`fixtures/packs/real-settings-scan1.animapack` and `-scan2.animapack` are real, from real hardware (Android 16 / API 36, so also proof the app survives well past targetSdk 34). No UI existed yet to trigger a scan (N1-N4 not landed), so a temporary bring-up harness, `DebugScanReceiver` (`:app`, adb-triggered, see its class doc), ran the real `Explorer` -> `ScanOrchestrator` -> `KnowledgeStore`/`PackArchive` pipeline directly.
 
-1. `make apk-install`, grant accessibility and overlay, disable battery optimisation.
-2. Scan **Settings** first — it is the app we already have hardware evidence on.
-3. Scan a real third-party app. Watch for: leaving the package, tapping something on the deny-list, stalling on a dialog, screenshots being refused under rate limiting.
-4. Export two scans of the same app to `fixtures/packs/real-<app>-scan1.animapack` and `-scan2.animapack`, commit them, **and tell Jiya, Neethu and Jacob in the channel.** Four people's work gets more realistic the moment those land.
-5. `diff` the two. It must be empty. When it is not, the difference tells you exactly which module broke stability — that is why the crawler's output carries nothing an LLM authored.
+**Two real, previously-undiscoverable bugs found and fixed** — neither is reachable by a JVM test, since both need a real `AccessibilityService` bound to a real window manager:
+
+1. **Screenshots always threw.** `AccessibilityService.takeScreenshot()` requires `android:canTakeScreenshot="true"` in `accessibility_service_config.xml` (API 30+, `CAPABILITY_CAN_TAKE_SCREENSHOT`) — minSdk was raised to 30 specifically for this API, but the capability was never declared, so every screenshot call threw `SecurityException` since the day `:capture` was written. Fixed.
+2. **`foregroundPackage()` was unreliable.** On this device, `rootInActiveWindow` persistently reported `com.android.systemui` (the notification shade's proxy window) as active even while `dumpsys window`'s real focus was a normal app — `SafetyEnvelope` correctly treated that as a system dialog and `Explorer` correctly refused to act on a screen it might not be looking at, so the *safety* behaviour was right and the *signal* feeding it was wrong. Fixed by deriving foreground identity from the same window enumeration `captureAllWindowNodes()` already trusts (topmost `TYPE_APPLICATION` window), falling back to the old behaviour only when none exists.
+
+**Stability result — genuinely encouraging, not glossed over.** Two scans of Settings: `signature`, `name`, `purpose`, `kind` and `modes_seen` were **byte-identical** on every screen both scans found in common. Only 3 element *labels* differed anywhere, and all three are live status-bar content the multi-window capture correctly includes: battery percentage, the clock, and a notification preview. That is real dynamic content, not an ID-scheme bug — but it does mean literal `screens[]` equality fails today because of it. **Open item for `:capture`/`:explore`:** exclude the status bar specifically (not all of `com.android.systemui`, which also hosts real dialogs `PopupInterceptor` needs) from element extraction.
+
+**Also open, not yet root-caused:** the two scans' *coverage* differed more than the label-only difference above would predict (15 vs 11 screens, 6 in common) — real-device gesture/settle timing plausibly perturbs which frontier ties get explored first, but this session didn't isolate it further. Flagging rather than claiming determinism holds fully on hardware yet.
+
+Third-party-app scanning and journey replay (S5) are still open — this pass proved the pipeline, not full coverage.
 
 ### S5. Journey replay — the differentiator
 

@@ -1,4 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+     canTakeScreenshot requests CAPABILITY_CAN_TAKE_SCREENSHOT (API 30+),
+     without which AccessibilityService.takeScreenshot() throws
+     SecurityException: "Services don't have the capability of taking the
+     screenshot." minSdk was raised to 30 specifically for this API (see
+     PLAN.md / EXECUTION_PLAN.md), but nothing ever declared the capability,
+     so on real hardware every screenshot call has always thrown. Caught the
+     first time this ran on a real device (S4); never caught by any JVM test
+     since a real AccessibilityService can't be constructed off-device.
+-->
 <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
     android:description="@string/accessibility_service_description"
     android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged|typeViewClicked|typeViewScrolled"
@@ -8,4 +18,5 @@
     android:canPerformGestures="true"
     android:canRequestFilterKeyEvents="true"
     android:canRequestTouchExplorationMode="false"
+    android:canTakeScreenshot="true"
     android:notificationTimeout="50" />

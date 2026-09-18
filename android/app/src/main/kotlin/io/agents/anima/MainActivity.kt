@@ -30,7 +30,7 @@ class MainActivity : AppCompatActivity() {
         container.removeAllViews(); container.addView(intro, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)); intro.start()
     }
 
-    private fun onboarding() = screen {
+    private fun onboarding(): Unit = screen {
         add(header("Know an app before you automate it", "ANIMA · APP CARTOGRAPHER")); add(copy("Choose an Android app and Anima will explore its safe, visible paths to build a Knowledge Pack with its screens, journeys, UI elements, and design system."), lp(12))
         add(card("Why Anima asks for access") {
             add(copy("Accessibility lets Anima understand on-screen structure and perform only the safe exploration actions needed to map the app you choose. You can pause or stop at any time."))
@@ -40,7 +40,7 @@ class MainActivity : AppCompatActivity() {
         add(primary("Choose an app") { picker() }); add(textAction("Privacy and safety") { privacy() }, lp(8))
     }
 
-    private fun picker() = screen {
+    private fun picker(): Unit = screen {
         add(top("Choose an app") { onboarding() }); add(copy("Select a launchable app. Anima stays within this package while it explores."), lp(12))
         val edit = TextInputEditText(this@MainActivity).apply { hint = "Search installed apps"; setTextColor(c(R.color.white)); setHintTextColor(c(R.color.slate_400)); contentDescription = "Search installed apps" }
         add(TextInputLayout(this@MainActivity).apply { boxBackgroundMode = TextInputLayout.BOX_BACKGROUND_OUTLINE; addView(edit) }, lp(16))
@@ -49,7 +49,7 @@ class MainActivity : AppCompatActivity() {
         edit.addTextChangedListener(SimpleTextWatcher { renderApps(it) }); renderApps("")
     }
 
-    private fun privacy() = screen {
+    private fun privacy(): Unit = screen {
         add(top("Privacy and safety") { onboarding() })
         add(card("Your control comes first") { add(copy("Anima maps only the app you select. Its persistent scan controls let you pause or stop immediately. Stopping ends exploration and discards an unfinished pack.")) })
         add(card("What Anima records") { add(copy("A completed Knowledge Pack stores screen structure, observed journeys, extracted design tokens, and optional screenshots from the selected app. It is designed to be exported as a compact .animapack file.")) })
@@ -57,7 +57,7 @@ class MainActivity : AppCompatActivity() {
         add(primary("Back to setup") { onboarding() })
     }
 
-    private fun scanControl() = screen {
+    private fun scanControl(): Unit = screen {
         add(top("Scan control") { picker() }); add(card(selected?.loadLabel(packageManager)?.toString() ?: "Selected app") { add(copy("Anima maps screens and safe transitions. It never taps destructive controls, leaves your selected app, or keeps working after you stop it.")) })
         val screens = value("0", "SCREENS FOUND"); val action = copy("Ready to scan"); val elapsed = value("00:00", "ELAPSED")
         add(card("Live scan") { add(screens); add(action, lp(8)); add(elapsed, lp(8)) })
@@ -66,14 +66,19 @@ class MainActivity : AppCompatActivity() {
         scanner.observe(object : FakeScanController.Listener { override fun onState(state: FakeScanController.State) { screens.text = state.screens.toString(); action.text = state.action; elapsed.text = String.format(Locale.US, "%02d:%02d", state.seconds / 60, state.seconds % 60); start.text = if (state.paused) "Resume scan" else "Start scan"; start.setOnClickListener { if (state.paused) scanner.resume() else scanner.start() }; pause.isEnabled = state.running; abort.isEnabled = state.running || state.paused; if (state.complete) { start.visibility = View.GONE; pause.visibility = View.GONE; abort.text = "View Knowledge Pack"; abort.isEnabled = true; abort.setOnClickListener { viewer() } } } })
     }
 
-    private fun viewer() = screen {
+    private fun viewer(): Unit = screen {
         add(top("Knowledge Pack") { scanControl() }); add(copy("This scripted preview keeps the product flow inspectable until the explorer publishes the G6 ScanController. It is not built against the placeholder golden fixture."), lp(12))
         add(card("App map") { add(copy("Pinch to zoom and drag to pan.")); add(ZoomableGraphView(this@MainActivity), LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(260)).apply { topMargin = dp(10) }) })
         add(card("Screen profile") { val row = LinearLayout(this@MainActivity).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }; val shot = TextView(this@MainActivity).apply { text = "SCREENSHOT\nPREVIEW"; gravity = Gravity.CENTER; setTextColor(c(R.color.ink_on_pearl)); setBackgroundColor(c(R.color.pearl_white)); contentDescription = "Screen screenshot preview"; setPadding(dp(8), dp(28), dp(8), dp(28)) }; val detail = copy("Wi‑Fi\nSettings screen\n\nPurpose\nConnect to a network\n\nElements\n• Network list\n• Add network").apply { setPadding(dp(14), 0, 0, 0) }; row.addView(shot, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)); row.addView(detail, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1.25f)); add(row) })
         add(card("Journeys") { add(copy("Connect to Wi‑Fi\nSettings → Wi‑Fi → Choose network\nReplay status: pending verified scan")) }); add(card("Extracted design system") { add(copy("Palette · type roles · 8dp spacing · rounded controls\nTokens here will be rendered from Jiya’s extracted pack section.")) }); add(primary("Export .animapack") { Toast.makeText(this@MainActivity, "Export activates when a completed pack is available.", Toast.LENGTH_LONG).show() })
     }
 
-    private fun screen(block: LinearLayout.() -> Unit) { container.removeAllViews(); val scroll = ScrollView(this).apply { isFillViewport = true }; val column = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(28), dp(20), dp(40)); block() }; scroll.addView(column); container.addView(scroll) }
+    // Explicit Unit return type is required, not stylistic: every screen (onboarding,
+    // picker, privacy, scanControl, viewer) is an expression-bodied `= screen { ... }`
+    // function, so without an explicit type here Kotlin's inference has to look at every
+    // caller to infer this function's return type while every caller is simultaneously
+    // waiting on this function's type -- "recursive problem", and the build fails.
+    private fun screen(block: LinearLayout.() -> Unit): Unit { container.removeAllViews(); val scroll = ScrollView(this).apply { isFillViewport = true }; val column = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(28), dp(20), dp(40)); block() }; scroll.addView(column); container.addView(scroll) }
     private fun LinearLayout.add(view: View, params: LinearLayout.LayoutParams = lp()) = addView(view, params)
     private fun lp(top: Int = 0) = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(top) }
     private fun header(title: String, kicker: String) = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; addView(TextView(this@MainActivity).apply { text = kicker; setTextColor(c(R.color.pearl_blue)); textSize = 11f; letterSpacing = .12f }); addView(TextView(this@MainActivity).apply { text = title; setTextColor(c(R.color.white)); textSize = 34f; setTypeface(typeface, 1); setPadding(0, dp(8), 0, 0) }) }

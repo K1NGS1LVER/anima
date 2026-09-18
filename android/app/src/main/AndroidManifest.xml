@@ -28,6 +28,23 @@
             </intent-filter>
         </activity>
 
+        <!--
+             S4 hardware bring-up harness, not a product feature. See the
+             class doc on DebugScanReceiver. Runs the real Explorer,
+             ScanOrchestrator, KnowledgeStore and PackArchive pipeline from an
+             adb broadcast. MainActivity still drives its scan screen off a
+             scripted FakeScanController (see its own note about G6), so this
+             stays the only way to produce a real pack until N4 swaps to the
+             real ScanController. Remove once it does.
+        -->
+        <receiver
+            android:name=".DebugScanReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="io.agents.anima.DEBUG_SCAN" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </receiver>
     </application>
 
 </manifest>

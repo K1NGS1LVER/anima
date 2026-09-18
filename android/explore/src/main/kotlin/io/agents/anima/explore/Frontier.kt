@@ -21,17 +21,30 @@ data class Candidate(
     val score: Int,
 ) {
     /** Stable across scans, across devices of the same resolution, and across runtimes. */
-    val orderKey: String = buildString {
-        append(screenId).append('|')
-        append(node.relBounds.joinToString(",")).append('|')
-        append(node.className).append('|')
-        append(node.resourceId ?: "").append('|')
-        append(node.text ?: node.contentDesc ?: "").append('|')
-        append(action.wire)
-    }
+    val orderKey: String = keyFor(screenId, node, action)
 
     /** Identity for "have we already done this?", independent of when it was found. */
     val actionKey: String get() = orderKey
+
+    companion object {
+        /**
+         * The single source of truth for a candidate's stable key.
+         *
+         * Exists as a standalone function -- not just the [orderKey] property --
+         * because [ScanOrchestrator] needs to recompute this exact key for
+         * `(screenId, node, action)` triples read back out of a finished
+         * [ScanOutcome] that are not backed by a live [Candidate]. Two copies of
+         * this logic could drift; this is the one copy both sides call.
+         */
+        fun keyFor(screenId: String, node: PrunedNode, action: ElementAction): String = buildString {
+            append(screenId).append('|')
+            append(node.relBounds.joinToString(",")).append('|')
+            append(node.className).append('|')
+            append(node.resourceId ?: "").append('|')
+            append(node.text ?: node.contentDesc ?: "").append('|')
+            append(action.wire)
+        }
+    }
 }
 
 /**

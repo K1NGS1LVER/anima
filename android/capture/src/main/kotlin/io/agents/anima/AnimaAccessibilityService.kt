@@ -148,8 +148,45 @@ class AnimaAccessibilityService : AccessibilityService() {
         }
     }
 
-    /** The package currently in the foreground, or null if no window is readable. */
-    fun foregroundPackage(): String? = rootInActiveWindow?.packageName?.toString()
+    /**
+     * The package currently in the foreground, or null if no window is readable.
+     *
+     * Found on real hardware (a Samsung One UI build, Android 16, during S4
+     * bring-up): `rootInActiveWindow` is not reliable on every OEM skin. On
+     * this device it kept reporting `com.android.systemui` -- the
+     * NotificationShade window -- as the active window even while
+     * `dumpsys window`'s `mCurrentFocus` correctly showed a real foreground
+     * app, apparently because the shade's proxy window (kept alive for edge
+     * gesture handling) registers itself as accessibility-active regardless of
+     * whether it is actually drawn. That silently broke every scan on this
+     * device: `SafetyEnvelope.locate()` saw a system package, found no popup
+     * button to dismiss, and `Explorer` correctly refused to act on a screen
+     * it might not really be looking at -- the safety behaviour was right, the
+     * signal feeding it was wrong.
+     *
+     * [foregroundApplicationWindow] reuses the same window enumeration
+     * [captureAllWindowNodes] already trusts for content, and prefers the
+     * topmost real application window's package over `rootInActiveWindow`.
+     * Falls back to the old behaviour when no application window is present
+     * (a pure launcher/systemui screen, where that is legitimately correct).
+     */
+    fun foregroundPackage(): String? =
+        foregroundApplicationWindow()?.root?.packageName?.toString()
+            ?: rootInActiveWindow?.packageName?.toString()
+
+    /**
+     * The topmost window of [AccessibilityWindowInfo.TYPE_APPLICATION], or
+     * null when none is present. System overlays, the input method and
+     * accessibility overlays are all excluded by construction -- only a real
+     * app window counts as "in the foreground" for identity purposes.
+     */
+    private fun foregroundApplicationWindow(): AccessibilityWindowInfo? = try {
+        windows.filterNotNull()
+            .filter { it.type == AccessibilityWindowInfo.TYPE_APPLICATION }
+            .maxByOrNull { it.layer }
+    } catch (e: Exception) {
+        null
+    }
 
     /** True when the screen the agent would act on is Anima's own UI. */
     fun isOwnUiInForeground(): Boolean = foregroundPackage() == packageName
