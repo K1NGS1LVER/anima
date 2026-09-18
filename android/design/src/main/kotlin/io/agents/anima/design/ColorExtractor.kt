@@ -362,8 +362,12 @@ class ColorExtractor(
             .map { it.key }
 
         val chosen = ArrayList<Int>()
+        // Named roles go in on identity alone. Merging them against each other
+        // drops surface whenever it is a near-white on a tinted window — which
+        // is the single most common Material 3 layout, and precisely the pair a
+        // reader most needs to see both halves of.
         for (color in roles) {
-            if (chosen.none { Colors.distanceSquared(it, color) <= mergeDistanceSquared }) chosen += color
+            if (chosen.none { it == color }) chosen += color
         }
         for (color in ordered) {
             if (chosen.size >= MAX_PALETTE) break
