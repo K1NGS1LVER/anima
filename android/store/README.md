@@ -10,3 +10,7 @@ Implements `ScreenIdentifier` and `PackRepository` from `:core`.
 - Diffing across scans, compaction to the size budget, and `.animapack` export/import.
 
 Spec: [`KNOWLEDGE_PACK.md`](../../KNOWLEDGE_PACK.md).
+
+## Your next tasks
+
+See [`../core/README.md`](../core/README.md) — `:core` and `:store` are one workstream. The blocking item here is **J2: `save()` is an empty body and `load()`/`latest()` return `null`**, so nothing persists. That shuts gate **G3**, which blocks Neethu's viewer, cross-scan diffing, and the saved-pack fallback that `RELEASE_READINESS.md` names as the plan when a live scan stalls.

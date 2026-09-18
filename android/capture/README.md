@@ -13,3 +13,7 @@ Everything that touches the device: the accessibility service, screenshots, gest
 | `engine/AccessibilityDevice.kt` | `AgentDevice` over the real phone. |
 
 Nothing above `:capture` is allowed to talk to `android.accessibilityservice` directly.
+
+## Your next tasks
+
+Full detail in [`EXECUTION_PLAN.md`](../../EXECUTION_PLAN.md) §Samuel. `:capture` is feature-complete for P1; the work here is **S2 — `ScanService`**, a foreground service so a four-minute scan is not killed by the system, with a Stop action wired to the same abort flag as the overlay kill switch.
