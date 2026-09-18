@@ -1,72 +1,100 @@
-# Anima — Phase 10 Plan: Make It Actually Learn, On Any Phone
+# Anima — Autonomous App Cartographer
 
-> **Working branch:** `dev-sam`
-> **Status:** planned, not started. Everything below is intent — see [CHECKLIST.md](CHECKLIST.md) for what is actually proven.
-> **Companion docs:** [CHECKLIST.md](CHECKLIST.md) · [CURRENT_PROGRESS.md](CURRENT_PROGRESS.md) · [dev_plan.md](dev_plan.md) §14 (full technical spec)
+> **The project pivoted.** Anima was a task-execution agent (goal → taps → compiled skill). It is now a system that explores an unfamiliar Android app hands-off and emits a structured, stable, compact **App Knowledge Pack**.
+>
+> Contract: [KNOWLEDGE_PACK.md](KNOWLEDGE_PACK.md) · Who does what: [ASSIGNMENTS.md](ASSIGNMENTS.md) · Status: [CHECKLIST.md](CHECKLIST.md) · Architecture SSOT: [dev_plan.md](dev_plan.md) §15
 
-## Phase 9, for context: shipped
+## The problem
 
-The APK builds, installs and was verified on a physical Redmi Note 11: it drove the real Settings UI, toggled Wi-Fi and Bluetooth, and replayed compiled skills at **0 LLM calls** in ~264ms. CI builds the APK on every push. That work is done; this plan is what comes next.
+An in-app agent can only help inside a host app if it knows that app as well as someone who built it — every screen, what each does, how they connect, how it looks and speaks. Today that knowledge is recorded by hand: slow, incomplete, and stale the moment the app updates.
 
-## Why this phase exists
+## What we're building
 
-Two gaps, both confirmed by reading the code rather than the docs.
+A normal user installs Anima, picks an installed app, and taps **Scan**. Anima explores it unattended and produces a browsable App Knowledge Pack: an app map, a profile per screen beside its screenshot, the journeys it found, and the app's design system. The pack exports as a file another AI can read.
 
-**1. The cold path compiles exactly one step.** `anima.py:1271` and `AnimaRuntime.kt:179` each build a one-element list. There is no loop. Every multi-step skill in the repo is a hand-written test fixture, and "set an alarm for 7:30" is unreachable by construction. The replay side is already N-step-general, so the entire gap is on the compile side.
+No demo mode. No staged fixtures in the product. It scans whatever you point it at.
 
-**2. There is no model in the APK, and the planner is fitted to one phone.** `AnimaEngine.kt:15` hardcodes the heuristic planner. Every planner rule added in Phase 9 — punctuation-stripping for "Wi-Fi", the actionable-ancestor redirect, exact-label preference, the toggle-row rule that exists *only* because MIUI renders a switch as a `CheckBox` — is hand-fitted to one skin on one device. Samsung, Pixel and ColorOS differ; a German phone shares no English keywords at all.
+## Why we're well-positioned
 
-A model reading the pruned Agent-DOM generalises where keyword rules cannot. **Device-agnostic operation is the objective; the model is the means.** The heuristic stays as the offline floor.
+Phase 9 shipped a working on-device agent verified on real hardware. Several pieces transfer directly:
 
-## What "done" looks like
+| Asset | Why it matters now |
+| :--- | :--- |
+| **UIFormer pruning** | Already solves the 1.5 MB problem — drops non-interactive containers, >60% reduction asserted in tests. The most valuable reuse in the repo. |
+| **Accessibility capture + gestures** | The execution plane an explorer needs: node capture, label inheritance, tap/swipe/text, foreground package detection. |
+| **Screen-graph shape** | `PageTransitionGraph` is nodes-and-edges over screens — exactly an app map. The shape is right; the hash function is not and gets replaced. |
+| **Popup interceptor / biometric guard** | Dialog dismissal is needed constantly while crawling; the biometric halt becomes a crawl boundary. |
+| **Kill switch + overlay** | Safety-critical when an agent crawls an unfamiliar app unattended. |
+| **Skill replay engine** | **Repurposed, not retired** — see below. |
 
-1. A single goal can teach Anima a **multi-step flow**, compiled into one N-step skill and replayable at 0 LLM calls.
-2. A real model sits behind the `Planner` interface, selectable between heuristic / on-device / cloud.
-3. **The same goal runs on ≥3 unrelated OEM skins with no per-OEM code.** This is the bar that matters; passing on the Redmi alone proves nothing about generality.
-4. An autonomous run cannot wander into a payment or deletion control without a human.
-5. Reported metrics say what they mean: `plannerCalls` vs `llmCalls`.
+Built from nothing: exploration policy, screenshots, scroll, LLM/VLM understanding, design extraction, the pack schema and store, gate passing, and the viewer.
 
-## Workstream A — Multi-step cold planning
+## The differentiator: the pack is executable
 
-A bounded `plan → act → observe` loop replacing the one-shot compile, in `AnimaRuntime.run` (Python) and `AnimaRuntime.coldCompile` (Kotlin).
+Everyone else's output will be documentation. Ours contains journeys that can be **replayed to verify they are real** — which is exactly the tested replay engine Anima already has. A knowledge pack that can prove itself is a far better answer to *"the knowledge breaks the moment the app updates"* than a prettier JSON file.
 
-Per iteration: capture → biometric guard → popup intercept → screen signature → `planStep(goal, dom, nodes, history)` → execute → re-capture → essential-state check → append to trajectory.
+## Architecture
 
-Guards, which are the whole safety story: **step budget** (~12), **no-progress abort** (two unverified steps), **cycle detection** (repeated screen signature), and a **new destructive-action guard** requiring HITL for Delete / Pay / Buy / Send / Confirm. A trajectory that aborts is reported and discarded — never compiled.
-
-Known friction: Python has a second single-step compile site (visual fallback) that Kotlin lacks entirely; Kotlin has no screen-signature function (the whole PTG subsystem is Python-only) and no `stepsVerified` field; `DemoDevice` is a single static screen so the demo would not exercise the loop; and `test_e2e_multi_screen_journey` models a journey as three separate goals, so it needs redesigning rather than re-asserting.
-
-## Workstream B — A real planner behind the seam
+Gradle modules, one owner each. Everything depends on `:core` and nothing else horizontal; `:app` depends on all.
 
 ```
-Planner (interface)
-├── HeuristicPlanner   offline floor, default          [exists]
-├── OnDevicePlanner    quantized Gemma, LiteRT/MediaPipe
-└── CloudPlanner       Gemini REST, opt-in, cloud flavor only
+:core        pure Kotlin — pack schema, stable IDs, canonicalization, UIFormer
+:capture     Android — accessibility, screenshots, scroll, window enumeration
+:explore     exploration policy, frontier, coverage, safety envelope
+:understand  LLM/VLM screen + journey + form-field semantics
+:design      brand and design token extraction
+:store       SQLite, pack assembly, diffing, export
+:app         onboarding, scan control, viewer, Play readiness
 ```
 
-A `PlannerFactory` gates each option on what is actually available — on-device only with a model present, cloud only after explicit consent — and always falls back to the heuristic. The prompt is `UIFormer.toCompactJson(nodes)` plus goal and history; the response is the strict JSON action contract `LocalLiteRTPlanner` already speaks.
+The repo is single-module today. Splitting it is what makes five people working simultaneously safe, and it is mechanical — the `engine` package already avoids `android.*` imports.
 
-**Build flavors (`offline` / `cloud`) keep the strongest claim provable.** Cloud and model download both need `INTERNET`, and a universal APK carrying that permission would turn "cannot phone home" from a fact checkable with `grep INTERNET` into a promise.
+## The three properties that actually get judged
 
-## Sequence
+1. **Stable** — two scans of the same app version produce byte-identical output. Achieved by SHA-256 structural hashing that excludes all dynamic content, canonical ordering, and caching every LLM result by screen hash. The current `compute_screen_signature` fails this outright (Python's `hash()` is salted per process) and is being replaced, not ported.
+2. **Compact** — `pack.json` ≤ 512 KB for a 40-screen app, enforced by a test that fails the build.
+3. **Machine-readable** — flat, predictable, no prose blobs where structure will do.
 
-1. Workstream A first — it is useful with no model at all, and it defines the `history` and `done` interface changes that B depends on.
-2. Extend `DemoDevice` to a multi-screen fixture so the loop is demonstrable.
-3. Destructive-action guard, before any autonomous loop is pointed at a real app.
-4. `PlannerFactory` + flavors, then the on-device planner, then cloud.
-5. Cross-OEM validation on ≥3 skins. Not optional; it is the acceptance bar.
+## Team
 
-## Out of scope for Phase 10
+| Person | Owns | Branch |
+| :--- | :--- | :--- |
+| **Samuel** | Exploration engine (`:capture`, `:explore`) + integration | `feat/explorer` |
+| **Daniel** | Understanding — LLM/VLM (`:understand`) | `feat/understanding` |
+| **Jacob** | Schema, stable IDs, store, diffing (`:core`, `:store`) | `feat/knowledge-store` |
+| **Jiya** | Design & brand extraction, rebuild test (`:design`) | `feat/design-extract` |
+| **Neethu** | Product app & viewer (`:app`) | `feat/app-ui` |
 
-- Production hardening (PII redaction, DB encryption, signing, Play policy) — tracked separately.
-- Porting the Page Transition Graph dashboard to Kotlin; only the screen-signature function is needed.
-- Visual grounding fallback in Kotlin, unless the loop work forces the decision.
+Full briefs in [ASSIGNMENTS.md](ASSIGNMENTS.md).
+
+## Day 0 — the only joint session
+
+Split the modules, **freeze the pack schema**, ship golden fixtures, agree interfaces, create branches. After this nobody blocks anybody. Also decide: **minSdk 26 → 30**, needed for `AccessibilityService.takeScreenshot()`.
+
+## Decisions
+
+| Decision | Rationale |
+| :--- | :--- |
+| **Hybrid, swappable LLM** | Cloud (Gemini) is the fast default for building and the live demo; on-device Gemma is the privacy story and offline fallback; heuristics are the floor. One interface, three backends. |
+| **In-app viewer** | Matches "an app facing a normal user" and keeps the deliverable a single Play-shaped artifact. |
+| **Gradle modules** | Five people in one module is a merge-conflict machine. Module boundaries are enforced by the compiler. |
+| **No demo mode** | The product scans real apps. Fixtures exist for development and tests, never as a staged product path. |
+| **Journeys are replayable** | Turns the retired replay engine into verification, and into the differentiator. |
+
+## Risks
+
+- **Play Store policy.** An app that automates *other* apps via the accessibility API is a genuine rejection risk. The goal is a release-ready unsigned APK, so this is a flag, not a blocker — but decide the framing before writing a store listing.
+- **Scanning third-party apps** raises per-app ToS questions. Fine for owned and test apps; worth a sentence in the pitch rather than a surprise from a judge.
+- **LLM non-determinism vs. stability.** Mitigated by caching every model result by structural hash. If that cache is wrong, the headline requirement fails.
+- **Crawler safety.** An unattended agent inside a banking app is the real risk in this project. Deny-list, package boundary, budgets and kill switch are all mandatory, not polish.
 
 ## Verification
 
-- `make test-all` and `./gradlew :app:testDebugUnitTest` green throughout.
-- A multi-step skill compiled from a single goal, replayed at `plannerCalls=0`, asserted in both runtimes.
-- The cross-runtime test extended to a 2+-step skill, so multi-step skills stay portable between laptop and phone.
-- Loop guards tested directly: budget exhaustion, no-progress abort, cycle abort, destructive-action halt.
-- **The cross-OEM run recorded in `CURRENT_PROGRESS.md` with device names and outcomes** — three skins, no per-OEM code.
+- **Stability:** two consecutive scans → byte-identical `screens[]`, `journeys[]`, `design_system`. The headline test.
+- **Compactness:** pack under budget for a 40-screen app.
+- **Coverage:** ≥30 screens on the fintech target with no human input.
+- **Rebuild:** 2–3 screens recreated from the pack alone, shown beside the originals.
+- **Journey replay:** a recorded journey replays successfully on a real device.
+- **Gates:** a login/OTP flow traversed autonomously with test credentials.
+- **Cross-device:** the same app scanned on two devices produces the same screen IDs.
+- CI green on every branch; `assembleRelease` produces an installable unsigned APK.

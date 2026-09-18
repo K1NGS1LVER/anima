@@ -4,7 +4,9 @@
 >
 > Context: [PLAN.md](PLAN.md) · Running log: [CURRENT_PROGRESS.md](CURRENT_PROGRESS.md)
 
-**Phase 9 (shipped)** is below. **[Phase 10 (planned)](#phase-10--multi-step-learning--device-agnostic-planning)** is at the end.
+**Phase 9 (shipped)** is below as history. The **pivot workstreams** — what everyone is actually building now — are at the end.
+
+Contract: [KNOWLEDGE_PACK.md](KNOWLEDGE_PACK.md) · Briefs: [ASSIGNMENTS.md](ASSIGNMENTS.md)
 
 Run `source android/env.sh` before any Gradle or ADB command below.
 
@@ -101,71 +103,154 @@ Run `source android/env.sh` before any Gradle or ADB command below.
 
 ---
 
-# Phase 10 — Multi-Step Learning & Device-Agnostic Planning
+---
 
-📋 **Planned, not started.** Nothing below is implemented. Full spec: [dev_plan.md §14](dev_plan.md). Plan: [PLAN.md](PLAN.md).
+> **Phase 10 (multi-step planning) is superseded.** The project pivoted to autonomous app exploration — see [PLAN.md](PLAN.md). The multi-step cold loop survives inside the exploration engine below; the rest of that plan is retired.
 
-Same rule as Phase 9: a box is ticked only when its command passes, never because the code looks right.
+---
 
-## A1 — The cold loop
+# Day 0 — joint, blocking
 
-- [ ] `planStep` grows a `history` argument in both runtimes; heuristic ignores it but will not re-tap an element it already used
-- [ ] `PlannedAction` / the Python tuple carries a terminal `done` action
-- [ ] `AnimaRuntime.coldCompile` (Kotlin) and the cold tail of `AnimaRuntime.run` (Python) iterate instead of compiling one step
-- [ ] `stepsExecuted` / `steps_executed` derived from the trajectory, not the hardcoded `1` at `anima.py:1295` and `AnimaRuntime.kt:201`
-- [ ] Kotlin `ExecutionResult` gains `stepsVerified`, matching Python
-- [ ] Screen-signature function ported to Kotlin (Python: `PageTransitionGraph.compute_screen_signature`, `anima.py:869`) — **no Kotlin equivalent exists today**
-- [ ] Decision recorded on whether the loop covers Python's visual-fallback compile site (`anima.py:1227`), which Kotlin lacks entirely
-- [ ] **A single goal compiles a genuine multi-step skill** — `make test-all` asserts `len(skill.steps) > 1` from one `run()` call
-- [ ] That skill replays at 0 planner calls — asserted in both runtimes
-- [ ] Cross-runtime test extended to a 2+-step skill — `./gradlew :app:testDebugUnitTest`
+- [ ] Gradle split into `:core :capture :explore :understand :design :store :app` — `./gradlew projects` lists all seven
+- [ ] `./gradlew build` green after the split
+- [ ] **Pack schema v1 frozen** and committed — [KNOWLEDGE_PACK.md](KNOWLEDGE_PACK.md)
+- [ ] Stable-ID spec agreed (SHA-256 structural hash, dynamic content excluded)
+- [ ] Golden fixture packs in `fixtures/packs/` — Jiya and Neethu unblocked
+- [ ] Module interfaces agreed (signatures only)
+- [ ] minSdk decision recorded (26 -> 30 for `takeScreenshot()`)
+- [ ] `dev` branch created, `main` protected, five feature branches pushed
+- [ ] CI runs per-module tests
 
-## A2 — Loop guards (none of these are optional)
+# Samuel — Exploration engine · `feat/explorer`
 
-- [ ] Step budget enforced and surfaced in the result — test drives a fixture that never completes
-- [ ] No-progress abort after two consecutive unverified steps — test
-- [ ] Cycle detection on a repeated screen signature — test drives a fixture that loops between two screens
-- [ ] **Destructive-action guard**: Delete / Remove / Pay / Buy / Send / Confirm require HITL regardless of budget — test asserts the run halts rather than taps
-- [ ] An aborted trajectory is **never** saved to the skill library — test asserts the DB is unchanged after an abort
-- [ ] Biometric HITL still halts inside the loop, not just on the first step — test
+## Capture gaps
 
-## A3 — Demo and E2E coverage
+- [ ] Screenshot capture via `AccessibilityService.takeScreenshot()` — none exists today
+- [ ] `isScrollable` stored on `AccessibilityNode` (read today, never kept)
+- [ ] `scroll()` added to `AgentDevice` (`dispatchSwipe` exists on the service, nothing calls it)
+- [ ] Multi-window enumeration via `getWindows()` (`flagRetrieveInteractiveWindows` already set)
+- [ ] Screenshot and node capture on the same frame, so design extraction and the tree agree
 
-- [ ] `DemoDevice` extended to a multi-screen flow (model it on `StatefulMockDevice` in `test_e2e.py`) — today it is one static screen and would exercise the loop for a single iteration
-- [ ] 3-act demo still passes with the multi-step loop — `make demo` and `./gradlew :app:testDebugUnitTest`
-- [ ] `test_e2e_multi_screen_journey` redesigned: it currently models a journey as three independent goals, which is a different flow model from one goal spanning N steps
+## Exploration loop
 
-## B1 — Planner seam
+- [ ] Frontier queue over unexplored elements
+- [ ] Action vocabulary: tap / scroll / back / drawer / fill / mode-toggle
+- [ ] Novelty scoring prefers unseen screens
+- [ ] Stop conditions: frontier exhausted, step budget, wall-clock budget, novelty decay
+- [ ] Coverage stats emitted into `scan.coverage`
+- [ ] **Seeded, ordered traversal** — repeat scans visit screens in the same order
 
-- [ ] `AnimaEngine` takes `Planner` as a constructor parameter (today `AnimaEngine.kt:15` hardcodes `HeuristicPlanner()`)
-- [ ] `PlannerFactory` resolves a stored preference against actual availability, always falling back to heuristic
-- [ ] Planner choice surfaced in `MainActivity` with the active planner visible at run time
-- [ ] Kotlin composer mirroring Python's `HybridPlanner` (`anima.py:711`) — model first, heuristic on any failure
+## Safety envelope
 
-## B2 — On-device model
+- [ ] Destructive-control deny-list enforced (Delete, Pay, Buy, Send, Transfer, Confirm, Log out)
+- [ ] Never leaves the target package; detects and returns
+- [ ] Recovery ladder: Back -> Home -> relaunch
+- [ ] Hard budgets on steps, depth, wall-clock
+- [ ] Kill switch verified live during a crawl
+- [ ] Biometric guard halts the crawl rather than attempting the prompt
 
-- [ ] Model dependency added to `android/app/build.gradle.kts` (no ML or HTTP dependency exists there today)
-- [ ] Prompt built from `UIFormer.toCompactJson(nodes)` + goal + history
-- [ ] Strict JSON response parsed to `PlannedAction`; malformed output falls back to heuristic — test with a deliberately broken response
-- [ ] Model acquisition flow with explicit consent and a visible size warning
-- [ ] Inference works with the device in airplane mode — the proof that it is genuinely on-device
+## Done when
 
-## B3 — Cloud planner and flavors
+- [ ] Scans a real app with no human input
+- [ ] >=30 screens discovered on the fintech target
+- [ ] Zero destructive controls tapped across 10 consecutive scans
+- [ ] Two consecutive scans visit screens in the same order
 
-- [ ] `offline` / `cloud` product flavors build — `./gradlew :app:assembleOfflineDebug :app:assembleCloudDebug`
-- [ ] **`offline` flavor declares no `INTERNET` permission** — `grep -c INTERNET` on its merged manifest returns 0
-- [ ] Cloud planner gated behind explicit consent, off by default
-- [ ] CI builds both flavors
+# Daniel — Understanding · `feat/understanding`
 
-## B4 — Device-agnostic acceptance (the bar that matters)
+- [ ] `ScreenUnderstander` interface defined in `:core` and agreed
+- [ ] `HeuristicUnderstander` — no model, no network, always available
+- [ ] `CloudVlm` backend (Gemini)
+- [ ] `OnDeviceLlm` backend (Gemma via MediaPipe/LiteRT)
+- [ ] Fallback composition — model first, heuristic on any failure
+- [ ] Strict JSON validation + repair; malformed output never breaks a scan — test with a deliberately broken response
+- [ ] **Results cached by structural hash**; rescan reuses prior text verbatim
+- [ ] Temperature 0 across backends
+- [ ] Screen `name`, `purpose`, `kind` produced
+- [ ] Per-element `semantic` produced
+- [ ] **Form-field typing with no roles and no labels** (email / phone / OTP / amount / date / password)
+- [ ] Journey naming and summarization from graph paths
+- [ ] `tone_of_voice` classification
+- [ ] Prompt built from the pruned Agent-DOM, not the raw tree — token budget asserted
 
-- [ ] Same goal runs on **≥3 unrelated OEM skins** (e.g. MIUI/HyperOS, One UI, Pixel stock) with **no per-OEM code added**
-- [ ] At least one run on a non-English device locale
-- [ ] Results recorded in `CURRENT_PROGRESS.md` with device names, Android versions and outcomes
-- [ ] Any per-OEM rule that proves unavoidable is documented in `dev_plan.md` §14 with the reason it could not be generalised
+## Done when
 
-## B5 — Metric honesty
+- [ ] An unlabelled, role-less screen still yields a correct purpose and correct field types
+- [ ] Two runs over the same screens produce identical text
+- [ ] Scan completes with the model backend forced to fail
 
-- [ ] `llmCalls` renamed `plannerCalls` across both runtimes, the HUD, `MainActivity` and the JSON contract
-- [ ] `llmCalls` reported only when a model actually ran — test asserts a heuristic cold run reports `llmCalls=0`, `plannerCalls=1`
-- [ ] README, `dev_plan.md` and the scoreboard updated to the new wording
+# Jacob — Knowledge store · `feat/knowledge-store`
+
+- [ ] **Golden fixture packs shipped** (Day 0 — unblocks two people)
+- [ ] Stable screen ID: SHA-256 over canonical structural fingerprint
+- [ ] Stable element ID; survives changed row text
+- [ ] **`compute_screen_signature` from `anima.py:869` NOT ported** (salted `hash()`, prune-order indices, 10-node window, 4-digit truncation)
+- [ ] Canonical JSON writer: fixed key order, fixed float precision, `Locale.US`
+- [ ] SQLite schema: app -> scans -> screens -> elements -> journeys
+- [ ] Scan diffing: added / removed / changed screens
+- [ ] Compaction: string interning, component dedupe, WebP screenshots, empty fields omitted
+- [ ] **Size budget enforced by a failing test** — `pack.json` <= 512 KB at 40 screens
+- [ ] `.animapack` export/import round-trips
+- [ ] Previous-version reader retained on any `pack_version` bump
+
+## Done when
+
+- [ ] **Two consecutive scans produce byte-identical `screens[]`, `journeys[]`, `design_system`** <- the headline test
+- [ ] Same app on two devices produces the same screen IDs
+- [ ] Diff correctly reports a screen added between two app versions
+- [ ] 40-screen pack fits the budget
+
+# Jiya — Design & brand extraction · `feat/design-extract`
+
+- [ ] Color palette quantized from screenshots, cross-checked against theme attributes
+- [ ] Colors classified (primary / on-primary / surface / background / error), not a raw histogram
+- [ ] Typography roles extracted (family, size, weight), VLM fallback where absent
+- [ ] Base spacing unit and radius scale inferred from bounds
+- [ ] Component catalog with `seen_on` counts (button, card, input, list row)
+- [ ] Light/dark token diff from both passes
+- [ ] `tone_of_voice` inputs collected from app copy
+- [ ] Emits a schema-valid `design_system` section
+- [ ] **Deterministic**: the same screenshot produces identical tokens on repeat runs
+- [ ] Unit tests run from a static image + node list, no device
+
+## Rebuild test (judging criterion)
+
+- [ ] Renders a screen from the pack alone, no screenshot used
+- [ ] Side-by-side comparison view with the original
+- [ ] **2-3 screens rebuilt and recognizable**
+
+# Neethu — Product app & viewer · `feat/app-ui`
+
+- [ ] Onboarding explains plainly why an accessibility service is required
+- [ ] Permission gate with deep links and live status, re-checked on resume
+- [ ] App picker: installed apps, icons, search, recents
+- [ ] Scan control: start / pause / stop, always-visible abort
+- [ ] Live progress: screens found, coverage, elapsed
+- [ ] **Viewer — app map**: zoomable, pannable screen graph
+- [ ] **Viewer — screen profile beside its screenshot** (name, purpose, elements, form fields)
+- [ ] Viewer — journeys browser
+- [ ] Viewer — design-system page rendering Jiya's section
+- [ ] Export / share `.animapack`
+- [ ] Entry point to Jiya's rebuild comparison
+
+## Production polish
+
+- [ ] Adaptive icon and store listing assets
+- [ ] Privacy policy screen
+- [ ] Empty / loading / error states on every screen
+- [ ] Dark mode
+- [ ] **Our own UI is accessible** — content descriptions, 48dp targets, font scaling
+- [ ] `./gradlew :app:assembleRelease` produces an installable unsigned APK
+
+## Done when
+
+- [ ] Someone who has never seen the project installs, grants, scans and browses without being told how
+
+# Integration — Samuel
+
+- [ ] All modules merged to `dev`, CI green
+- [ ] End-to-end on a real device: pick app -> scan -> pack -> viewer
+- [ ] Journey replay verifies a recorded journey on a real device
+- [ ] Login/OTP gate traversed autonomously with test credentials
+- [ ] Retired: `DemoDevice`, `DemoScript`, 3-act demo, `run_benchmark`, `IntentRouter`, `TaskerReceiver`, skill-replay CLI flags
+- [ ] README reflects the product, not the old task-agent framing

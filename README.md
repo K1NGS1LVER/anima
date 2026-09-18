@@ -5,9 +5,13 @@
 [![Python: 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
 [![Zero Dependencies](https://img.shields.io/badge/Dependencies-0%20(Pure%20Stdlib)-brightgreen.svg)](https://github.com/K1NGS1LVER/anima)
 
-**Anima** is an on-device, hybrid-engine autonomous mobile GUI agent runtime and skill engine.
+**Anima** is an autonomous app cartographer: point it at an Android app and it explores the app hands-off, then hands you a complete, structured **App Knowledge Pack** — every screen and what it does, the elements and form fields on it, the journeys connecting them, and the app's brand and design language.
 
-Built to solve the core architectural bottlenecks of current academic and commercial mobile agent frameworks (AppAgent, AutoDroid, Mobile-Agent-v3): **severe token bloat ($0.90+/task)**, **high latency (up to 180s/step)**, **stateless amnesia**, and **shell injection vulnerabilities**.
+An in-app AI agent can only help inside a host app if it knows that app as well as someone who built it. Today that knowledge is recorded by hand: slow, incomplete, and stale the moment the app updates. Anima builds it automatically, keeps it **stable across repeat scans**, and keeps it **compact enough for another AI to read** (raw Android UI trees exceed 1.5 MB; a whole pack stays under 512 KB).
+
+Unlike inert documentation, the journeys in a pack are **replayable** — Anima can re-run one on a real device to prove the knowledge is still true, and diff what changed when the app updates.
+
+> **Status:** pivoted from a task-execution agent to app exploration. See [PLAN.md](PLAN.md), the schema contract in [KNOWLEDGE_PACK.md](KNOWLEDGE_PACK.md), and team briefs in [ASSIGNMENTS.md](ASSIGNMENTS.md). The on-device execution engine below shipped and was verified on real hardware; it now powers exploration and journey verification.
 
 ---
 
