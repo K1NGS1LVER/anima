@@ -8,7 +8,7 @@ import android.util.Log
 
 class KnowledgeStore(context: Context, dbName: String = "knowledge_pack.db") {
     companion object {
-        const val DB_VERSION = 1
+        const val DB_VERSION = 2
         
         const val CREATE_APP = """
             CREATE TABLE IF NOT EXISTS app (
@@ -79,6 +79,14 @@ class KnowledgeStore(context: Context, dbName: String = "knowledge_pack.db") {
                 FOREIGN KEY(scan_id) REFERENCES scans(id)
             )
         """
+
+        const val CREATE_MODEL_CACHE = """
+            CREATE TABLE IF NOT EXISTS model_cache (
+                id TEXT PRIMARY KEY,
+                type TEXT NOT NULL,
+                cached_json TEXT NOT NULL
+            )
+        """
     }
 
     private val helper: SQLiteOpenHelper =
@@ -89,13 +97,36 @@ class KnowledgeStore(context: Context, dbName: String = "knowledge_pack.db") {
                 db.execSQL(CREATE_SCREENS)
                 db.execSQL(CREATE_ELEMENTS)
                 db.execSQL(CREATE_JOURNEYS)
+                db.execSQL(CREATE_MODEL_CACHE)
             }
 
             override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-                // Not supported for now
+                if (oldVersion < 2) {
+                    db.execSQL(CREATE_MODEL_CACHE)
+                }
             }
         }
         
     fun getReadableDatabase(): SQLiteDatabase = helper.readableDatabase
     fun getWritableDatabase(): SQLiteDatabase = helper.writableDatabase
+
+    fun cacheModelResult(id: String, type: String, jsonValue: String) {
+        val values = ContentValues().apply {
+            put("id", id)
+            put("type", type)
+            put("cached_json", jsonValue)
+        }
+        helper.writableDatabase.insertWithOnConflict(
+            "model_cache", null, values, SQLiteDatabase.CONFLICT_REPLACE
+        )
+    }
+
+    fun getCachedModelResult(id: String): String? {
+        helper.readableDatabase.rawQuery("SELECT cached_json FROM model_cache WHERE id = ?", arrayOf(id)).use { cursor ->
+            if (cursor.moveToFirst()) {
+                return cursor.getString(0)
+            }
+        }
+        return null
+    }
 }
