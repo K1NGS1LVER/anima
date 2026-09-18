@@ -2,7 +2,7 @@
 
 > A box gets ticked **only** when its verification command passes on this machine. No box is ticked on the strength of "the code looks right" — that is exactly how Phases 5–6 came to be marked complete for a module that had never been compiled.
 >
-> Context: [PLAN.md](PLAN.md) · Running log: [CURRENT_PROGRESS.md](CURRENT_PROGRESS.md)
+> Context: [PLAN.md](PLAN.md) · **Runbook: [EXECUTION_PLAN.md](EXECUTION_PLAN.md)** · Running log: [CURRENT_PROGRESS.md](CURRENT_PROGRESS.md)
 
 **Phase 9 (shipped)** is below as history. The **pivot workstreams** — what everyone is actually building now — are at the end.
 
@@ -109,75 +109,99 @@ Run `source android/env.sh` before any Gradle or ADB command below.
 
 ---
 
-# Day 0 — joint, blocking
+# Blockers — found by inspecting merged code, not by reading commit messages
 
-- [ ] Gradle split into `:core :capture :explore :understand :design :store :app` — `./gradlew projects` lists all seven
-- [ ] `./gradlew build` green after the split
-- [ ] **Pack schema v1 frozen** and committed — [KNOWLEDGE_PACK.md](KNOWLEDGE_PACK.md)
-- [ ] Stable-ID spec agreed (SHA-256 structural hash, dynamic content excluded)
-- [ ] Golden fixture packs in `fixtures/packs/` — Jiya and Neethu unblocked
-- [ ] Module interfaces agreed (signatures only)
-- [ ] minSdk decision recorded (26 -> 30 for `takeScreenshot()`)
-- [ ] `dev` branch created, `main` protected, five feature branches pushed
-- [ ] CI runs per-module tests
+These three are load-bearing. Two of them are correctness bugs in code that is already on `dev` and already passing its own tests. Full context and the order to fix them in: [EXECUTION_PLAN.md](EXECUTION_PLAN.md).
+
+- [ ] **Nothing is wired end to end** — `Explorer` makes a `ScanOutcome`, `HybridUnderstander` makes a `ScreenProfile`, `KnowledgeStore` takes a `KnowledgePack`, and nothing turns the first into the third. No code path has ever produced a real pack. **Samuel, critical path.**
+- [ ] **`KnowledgeStore` does not persist** — `save()` is an empty body, `load()` and `latest()` return `null`. No pack can be reopened, no two scans diffed, and the demo's saved-pack fallback does not exist. **Jacob, first.**
+- [ ] **`StableIdEngine.signature()` does not de-duplicate resource-ids** — a list screen with five rows and the same screen with six hash differently, so one screen gets two ids across scans. Passes a hand-built unit test, fails the first real rescan. **Jacob, before anything else in `:store`.**
+
+
+# Day 0 — joint, blocking ✅ (except fixtures)
+
+- [x] Gradle split into `:core :capture :explore :understand :design :store :app` — `./gradlew projects` lists all seven
+- [x] `./gradlew build` green after the split
+- [x] **Pack schema v1 frozen** and committed — `core/src/main/kotlin/io/agents/anima/core/Pack.kt`, matching [KNOWLEDGE_PACK.md](KNOWLEDGE_PACK.md)
+- [x] Stable-ID spec agreed (SHA-256 structural hash, dynamic content excluded) — [KNOWLEDGE_PACK.md](KNOWLEDGE_PACK.md); implementation is Jacob's
+- [x] Golden fixture packs in `fixtures/packs/` — `golden.animapack` shipped; **Jiya and Neethu are unblocked**
+- [x] Module interfaces agreed (signatures only) — `core/src/main/kotlin/io/agents/anima/core/Contracts.kt`
+- [x] minSdk decision recorded (26 -> 30 for `takeScreenshot()`) — `android/build.gradle.kts`, one place, not seven
+- [x] `dev` branch created and five feature branches pushed off it — `git branch -a`
+- [x] CI runs per-module tests — `.github/workflows/ci.yml` runs `./gradlew test`, not `:app:testDebugUnitTest`, which would now say nothing about the engine
+- [x] `:core` kept free of `android.*` — enforced by `NoAndroidImportsTest`, not by convention
+
+> `main` protection is a repo setting, not a commit. **Samuel: set it in GitHub before anyone opens a PR.**
+
+> Branches were created off `dev` rather than left to each person, because branching off `main` by mistake means missing the module split entirely and hitting a merge conflict across every build file.
 
 # Samuel — Exploration engine · `feat/explorer`
 
-## Capture gaps
+## Capture gaps ✅
 
-- [ ] Screenshot capture via `AccessibilityService.takeScreenshot()` — none exists today
-- [ ] `isScrollable` stored on `AccessibilityNode` (read today, never kept)
-- [ ] `scroll()` added to `AgentDevice` (`dispatchSwipe` exists on the service, nothing calls it)
-- [ ] Multi-window enumeration via `getWindows()` (`flagRetrieveInteractiveWindows` already set)
-- [ ] Screenshot and node capture on the same frame, so design extraction and the tree agree
+- [x] Screenshot capture via `AccessibilityService.takeScreenshot()` — `AnimaAccessibilityService.takeScreenshotSync()`; WebP downscale to the 60 KB / 720 px budget in `capture/Screenshotter.kt`
+- [x] `isScrollable` stored on `AccessibilityNode` and `PrunedNode` (read since the first version, never kept)
+- [x] Scrollable containers survive `UIFormer` pruning — without this a list screen looks finished at the fold
+- [x] `scroll()` in the device contract — `ExplorationDevice.scroll()`, swiping the middle 60% to miss the back gesture and the notification shade
+- [x] Multi-window enumeration via `getWindows()` — `captureAllWindowNodes()`, ordered by layer then window id so two scans agree
+- [x] Screenshot and node capture in one `observe()` call, so design extraction and the tree describe the same screen
 
 ## Exploration loop
 
-- [ ] Frontier queue over unexplored elements
-- [ ] Action vocabulary: tap / scroll / back / drawer / fill / mode-toggle
-- [ ] Novelty scoring prefers unseen screens
-- [ ] Stop conditions: frontier exhausted, step budget, wall-clock budget, novelty decay
-- [ ] Coverage stats emitted into `scan.coverage`
-- [ ] **Seeded, ordered traversal** — repeat scans visit screens in the same order
+- [x] Frontier queue over unexplored elements — `explore/Frontier.kt`
+- [x] Action vocabulary: tap / scroll / back / fill / relaunch — `Explorer.perform()`
+- [ ] Drawer-opening gesture (edge swipe) — not yet; drawers are reached today only when a hamburger control is exposed as a node
+- [x] Mode toggle — `setUiMode()`, honest about needing `WRITE_SECURE_SETTINGS`; returns false rather than faking a light/dark diff
+- [x] Novelty scoring prefers navigation over toggles and text — `explore/ExplorationPolicy.kt`
+- [x] Stop conditions: frontier exhausted, step budget, screen budget, wall-clock, novelty decay — each with its own `StopReason`
+- [x] Coverage stats emitted — `ScanOutcome` carries screens, elements, steps, frontier remaining and stop reason
+- [ ] Coverage written into `scan.coverage` of the pack — needs Jacob's assembler
+- [x] **Ordered, reproducible traversal** — `ExplorerTest.twoScansOfTheSameAppWalkItIdentically`
 
 ## Safety envelope
 
-- [ ] Destructive-control deny-list enforced (Delete, Pay, Buy, Send, Transfer, Confirm, Log out)
-- [ ] Never leaves the target package; detects and returns
-- [ ] Recovery ladder: Back -> Home -> relaunch
-- [ ] Hard budgets on steps, depth, wall-clock
-- [ ] Kill switch verified live during a crawl
-- [ ] Biometric guard halts the crawl rather than attempting the prompt
+- [x] Destructive-control deny-list enforced — `explore/SafetyEnvelope.kt`; candidates are never queued, so no later bug in the loop can reach one
+- [x] Forward-motion labels deliberately allowed (Continue, Next, Submit, Sign in, Verify) — the crawler has to get through login and OTP gates
+- [x] Never leaves the target package; detects and returns — `SafetyEnvelope.locate()` + `Explorer.recover()`
+- [x] Recovery ladder: Back -> Home -> relaunch, ordered by what each costs the scan
+- [x] Hard budgets on steps, depth, screens and wall-clock — `explore/ScanBudget.kt`
+- [x] Biometric guard records the screen as a boundary and does not drive it — `ExplorerTest.anAuthenticationScreenIsRecordedButNotDriven`
+- [ ] Kill switch verified live during a crawl on hardware — wired (`isAborted`) and unit-tested; **needs the phone**
 
-## Done when
+## Done when — all four need hardware
 
 - [ ] Scans a real app with no human input
 - [ ] >=30 screens discovered on the fintech target
 - [ ] Zero destructive controls tapped across 10 consecutive scans
-- [ ] Two consecutive scans visit screens in the same order
+- [ ] Two consecutive scans visit screens in the same order **on a device** (proved against a fake app; the device adds timing, animation and OEM behaviour)
+
+> No box above is ticked on hardware evidence. `adb devices` was empty for this
+> session, so everything marked done is verified by JVM tests and a green build,
+> and everything that genuinely needs the Redmi is still open. That distinction
+> is the whole point of this file.
 
 # Daniel — Understanding · `feat/understanding`
 
-- [ ] `ScreenUnderstander` interface defined in `:core` and agreed
-- [ ] `HeuristicUnderstander` — no model, no network, always available
-- [ ] `CloudVlm` backend (Gemini)
-- [ ] `OnDeviceLlm` backend (Gemma via MediaPipe/LiteRT)
-- [ ] Fallback composition — model first, heuristic on any failure
-- [ ] Strict JSON validation + repair; malformed output never breaks a scan — test with a deliberately broken response
-- [ ] **Results cached by structural hash**; rescan reuses prior text verbatim
-- [ ] Temperature 0 across backends
-- [ ] Screen `name`, `purpose`, `kind` produced
-- [ ] Per-element `semantic` produced
-- [ ] **Form-field typing with no roles and no labels** (email / phone / OTP / amount / date / password)
-- [ ] Journey naming and summarization from graph paths
-- [ ] `tone_of_voice` classification
-- [ ] Prompt built from the pruned Agent-DOM, not the raw tree — token budget asserted
+- [x] `ScreenUnderstander` interface defined in `:core` and agreed
+- [x] `HeuristicUnderstander` — no model, no network, always available
+- [x] `CloudVlm` backend (Gemini)
+- [ ] `OnDeviceLlm` backend (Gemma via MediaPipe/LiteRT) ← deferred by decision; `LocalLlm` (local endpoint client) shipped instead
+- [x] Fallback composition — model first, heuristic on any failure
+- [x] Strict JSON validation + repair; malformed output never breaks a scan — test with a deliberately broken response
+- [x] **Results cached by structural hash**; rescan reuses prior text verbatim
+- [x] Temperature 0 across backends
+- [x] Screen `name`, `purpose`, `kind` produced
+- [x] Per-element `semantic` produced
+- [x] **Form-field typing with no roles and no labels** (email / phone / OTP / amount / date / password)
+- [x] Journey naming and summarization from graph paths
+- [x] `tone_of_voice` classification
+- [x] Prompt built from the pruned Agent-DOM, not the raw tree — token budget asserted
 
 ## Done when
 
-- [ ] An unlabelled, role-less screen still yields a correct purpose and correct field types
-- [ ] Two runs over the same screens produce identical text
-- [ ] Scan completes with the model backend forced to fail
+- [x] An unlabelled, role-less screen still yields a correct purpose and correct field types
+- [x] Two runs over the same screens produce identical text
+- [x] Scan completes with the model backend forced to fail
 
 # Jacob — Knowledge store · `feat/knowledge-store`
 
@@ -312,3 +336,45 @@ Full detail and the T-3/T-2/T-1 schedule: [RELEASE_READINESS.md](RELEASE_READINE
 - [ ] Rebuild comparison and journey replay reached before time runs out
 - [ ] `scan twice && diff` demonstrated as the stability proof
 - [ ] Answers ready for Play Store policy, third-party ToS, and known gaps
+
+---
+
+# P2–P5 — freeze, regression, rehearsal, demo
+
+Expanded, with owners and exit gates, in [EXECUTION_PLAN.md](EXECUTION_PLAN.md). Tick here as each phase closes.
+
+## P2 — T-3, feature freeze
+
+- [ ] All five branches rebased on `dev` and pushed
+- [ ] Samuel merged all five in dependency order
+- [ ] `./gradlew test` green on the **merged** result
+- [ ] `./gradlew :app:assembleDebug` green on the merged result
+- [ ] **End-to-end scan on the primary device, from the merged build** — the exit gate
+- [ ] Integration report read by everyone; breakages owned same day
+
+## P3 — T-2, regression pass (against `dev`, not your branch)
+
+- [ ] Samuel — 10 consecutive scans, zero destructive taps, kill switch live, two scans diff empty
+- [ ] Jacob — save/load/canonical round trip, size budget on a real pack, diff across versions, `.animapack` imports on a second device
+- [ ] Daniel — wifi genuinely off end to end, malformed output degrades, rescan makes zero model calls, no-label screen still typed
+- [ ] Jiya — tokens match by eye, repeat runs identical, two rebuilt screens recognisable
+- [ ] Neethu — fresh install on a wiped device, every empty/loading/error state, dark mode, TalkBack sweep
+- [ ] Neethu — **release build installed and exercised** (R8 strips what debug keeps)
+- [ ] Neethu — backup device set up identically and verified end to end
+
+## P4 — T-1, rehearsal
+
+- [ ] Rehearsal 1, with network, timed
+- [ ] Rehearsal 2, **wifi actually off**, timed
+- [ ] Both devices configured identically (developer options, permissions, battery optimisation off, timeout raised, DND on, target apps installed and logged in)
+- [ ] Saved packs for 2–3 apps on both devices — Jacob
+- [ ] `main` tagged, release APK built and installed from the release build — Neethu
+- [ ] Speaking roles assigned
+- [ ] Presentation flow walked end to end against the clock, reaching rebuild + replay + diff
+- [ ] Answers written down: Play policy, per-app ToS, what the pack does not cover
+
+## P5 — T, demo day
+
+- [ ] No code changes
+- [ ] Both phones charged, rehearsed build, saved packs present
+- [ ] Log export ready to show if something breaks

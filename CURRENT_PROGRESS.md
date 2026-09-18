@@ -9,17 +9,37 @@
 
 Read in this order: [PLAN.md](PLAN.md) → [KNOWLEDGE_PACK.md](KNOWLEDGE_PACK.md) (the contract) → your section of [ASSIGNMENTS.md](ASSIGNMENTS.md).
 
-**Next action: Day 0, everyone together, ~3 hours.** Split the Gradle modules, freeze the pack schema, ship golden fixtures, agree interfaces, create branches. Nothing else starts until the schema is frozen — changing it later stalls four people at once.
+**Day 0 is done and three modules are merged into `dev`.** Seven Gradle modules, pack schema frozen in code, interfaces agreed, minSdk 30, five feature branches live.
+
+| Module | Owner | State on `dev` |
+| :--- | :--- | :--- |
+| `:core`, `:store` | Jacob | ✅ merged — stable IDs, canonical JSON, compaction, SQLite, `.animapack`, golden fixture |
+| `:capture`, `:explore` | Samuel | ✅ merged — screenshots, multi-window, scroll, the autonomous crawler |
+| `:understand` | Daniel | ✅ merged — cloud / local / heuristic backends with caching |
+| `:design` | Jiya | ⬜ not started — `feat/design-extract` is fast-forwarded to `dev` and ready |
+| `:app` | Neethu | ⬜ not started — `feat/app-ui` is fast-forwarded to `dev` and ready |
+
+**Jiya and Neethu are unblocked.** `fixtures/packs/golden.animapack` exists, so both of you can build and test against real pack data without the crawler running at all. Your branches already sit on the integrated `dev`; just check out and start.
+
+**Everyone: your next task is in [EXECUTION_PLAN.md](EXECUTION_PLAN.md)**, with the dependency gate it waits on and the command that proves it done. That file is the runbook from here to demo day; this one stays the log.
+
+**Three blockers found by reading the merged code**, two of them correctness bugs in modules whose own tests are green:
+
+1. **Nothing is wired end to end.** No orchestrator turns a `ScanOutcome` into a `KnowledgePack`. No real pack has ever been produced. *Samuel, critical path.*
+2. **`KnowledgeStore.save()` is an empty body**, `load()`/`latest()` return `null`. Nothing persists, so nothing can be reopened or diffed and the saved-pack demo fallback does not exist. *Jacob, first.*
+3. **`StableIdEngine.signature()` does not de-duplicate resource-ids**, so a list screen with five rows and the same screen with six get different ids. It passes a hand-built unit test and fails the first real rescan — precisely the case the contract warns about. *Jacob, before anything else.*
+
+**Samuel: set branch protection on `main` in GitHub** — a repo setting, not a commit, so it could not be done from here.
 
 **Team and branches**
 
-| Person | Owns | Branch |
-| :--- | :--- | :--- |
-| Samuel | Exploration engine + integration | `feat/explorer` |
-| Daniel | Understanding (LLM/VLM) | `feat/understanding` |
-| Jacob | Schema, stable IDs, store, diffing | `feat/knowledge-store` |
-| Jiya | Design extraction + rebuild test | `feat/design-extract` |
-| Neethu | Product app & viewer | `feat/app-ui` |
+| Person | Owns | Branch | Module |
+| :--- | :--- | :--- | :--- |
+| Samuel | Exploration engine + integration | `feat/explorer` | `:capture`, `:explore` |
+| Daniel | Understanding (LLM/VLM) | `feat/understanding` | `:understand` |
+| Jacob | Schema, stable IDs, store, diffing | `feat/knowledge-store` | `:core` schema, `:store` |
+| Jiya | Design extraction + rebuild test | `feat/design-extract` | `:design` |
+| Neethu | Product app & viewer | `feat/app-ui` | `:app` |
 
 **The two things most likely to be got wrong**, both called out in the docs:
 1. Stability. `compute_screen_signature` (`anima.py:869`) uses Python's salted `hash()` and produces different IDs every run — it must be replaced, not ported. And LLM output must be cached by structural hash or the pack will never be byte-stable.
@@ -35,13 +55,86 @@ Read in this order: [PLAN.md](PLAN.md) → [KNOWLEDGE_PACK.md](KNOWLEDGE_PACK.md
 | Android SDK | `/opt/homebrew/share/android-commandlinetools` (Homebrew cask default, *not* `~/Library/Android/sdk`) |
 | SDK packages | `platform-tools`, `platforms;android-34`, `build-tools;34.0.0`, licences accepted |
 | Gradle | 8.9 via the committed wrapper (`./gradlew`). Homebrew's system Gradle is 9.7 and **is not compatible with AGP 8.x** — it was used once to generate the wrapper and should not be used to build. |
-| AGP / Kotlin | 8.5.2 / 1.9.24, compileSdk+targetSdk 34, minSdk 26, JVM target 17 |
+| AGP / Kotlin | 8.5.2 / 1.9.24, compileSdk+targetSdk 34, **minSdk 30**, JVM target 17. The SDK levels are declared once in `android/build.gradle.kts` and read by all seven modules, not copied into each. |
 | `adb` | `/opt/homebrew/bin/adb` |
 | `local.properties` | written, gitignored — regenerate with `echo "sdk.dir=$ANDROID_HOME" > android/local.properties` |
 
 One-time setup on a fresh machine is documented at the top of `android/env.sh`.
 
 ## Log
+
+### 2026-09-18 — Samuel: execution plan for P1 → demo day (`EXECUTION_PLAN.md`)
+
+Wrote the runbook the team and their agents work from between now and T. Per-person task order, dependency gates with real check commands, and the freeze → regression → rehearsal → demo phases with exit criteria. Cross-linked from every other doc so there is one place to look.
+
+Writing it meant reading the merged code rather than the commit messages, which turned up three things that were not true:
+
+- **No end-to-end path exists.** Three modules each produce their half of a pack and nothing joins them. That is now the top of my own list, ahead of anything else, because four people's work gets more realistic the moment a real scan exists.
+- **`KnowledgeStore` persistence is a stub** — `save()` is an empty body with a comment describing what it would do. Its module's tests are green, which is what makes it worth writing down loudly.
+- **`StableIdEngine` folds duplicate resource-ids into the fingerprint.** Same screen, one more list row, different screen id. It will pass every synthetic test we have and fail the first real rescan, which is the headline acceptance criterion.
+
+Also decided the cut list now, in the cold, rather than at 2am at T-1 — and what is never cut: the safety envelope, the stability test, the rebuild test, journey replay, and the rehearsal.
+
+### 2026-09-18 — Samuel: integration pass, three modules merged into `dev` (`32c664c`)
+
+`feat/explorer`, `feat/knowledge-store` and `feat/understanding` are all on `dev`. Whole suite green after each merge, debug APK builds.
+
+- **149 JVM tests** — 78 `:core`, 33 `:explore`, 38 `:understand`.
+- **APK is 22.3 MB**, up from 12.0 MB when only my modules were in. The budget in `RELEASE_READINESS.md` is 30 MB, so there is headroom but not a lot of it; worth watching as `:design` and `:app` land.
+- One conflict, in `CURRENT_PROGRESS.md`, where Daniel and I both prepended an entry for the same day. Kept both.
+
+**One thing I changed on someone else's behalf, recorded rather than done quietly.** `feat/knowledge-store` brought in a rewrite of `NoAndroidImportsTest` that began:
+
+    if (!coreDir.exists()) return   // skip if run from different context
+
+A guard test that reports success precisely when it cannot find the thing it guards goes green forever and protects nothing — the same failure mode as Phases 5–6 being marked complete for a module that had never been compiled. Restored in `458c9dd`: assert the working directory, list every offender with file and line instead of failing on the first, and match the import statement rather than the substring so a comment mentioning `android.*` is not a false positive. The reasoning now lives in the file.
+
+### 2026-09-18 — Understanding module: full chain implemented and hermetic-tested (`feat/understanding`)
+
+`:understand` now implements the frozen `ScreenUnderstander` contract. `cedc6b3` + follow-up (38 unit tests green across `:understand`, whole `./gradlew test` green):
+
+- **Backends** — `CloudVlm` (Gemini 2.5 Flash REST, temp 0, null without key), `LocalLlm` (OpenAI-style client for a local model server; embedded Gemma/LiteRT deferred by decision — the APK stays dependency-free, matching the `LocalLiteRTPlanner` Python pattern), `HeuristicUnderstander` (deterministic floor: class- and vocabulary-driven kinds, typed inputs, journeys, tone).
+- **Stability mechanics** — `UnderstandCache` (durable file-backed, keyed by screen/journey/tone id) makes rescan reuse the first run's exact bytes; `HybridUnderstander` exposes `lastBackend`/`cacheHits` for `scan.understander`. Temperature 0 wired into every backend.
+- **Gate** — `JsonResponse` brace-depth extraction, `ScreenProfileJson` strict name+purpose requirement with in-place repair (unknown kind → `OTHER`, unknown input type → drop that input). Malformed model output degrades to heuristic, never crashes.
+- **End-to-end slice** — hermetic test drives `LocalLlm` over a real loopback HTTP socket and asserts: the request crosses the wire with `temperature: 0`, the reply parses into a profile, the cache persists, a rescan makes **zero** second network calls, garbage from the live backend degrades to heuristic, and journey/tone complete over the same endpoint.
+
+Bugs the tests caught while writing them: camelCase `LoginActivity` defeated `\b`-word matching (`slug()` splits on capitals), Kotlin `replaceFirst(String,…)` is literal so `"Activity$"` never stripped, the DOM budget counted element lengths but not separators, and Java's `Expect: 100-continue` deadlocks a loopback server that doesn't honour it — the fake endpoint now does, like a real server.
+
+One checklist item stays open: embedded `OnDeviceLlm` (Gemma via MediaPipe/LiteRT). Un-ticked by the explicit rule — nothing is ticked on the strength of intent.
+
+### 2026-09-18 — Samuel: Day 0 module split, then `:capture` and `:explore` (`ae790b9`, `c43b5a7`, `3474b9b`, `d3ceb5a`)
+
+**Day 0 — the split (`dev`).** One `:app` module meant five people editing one build file and one manifest. Now seven modules, one owner each, one horizontal dependency (`:core`):
+
+    :core  pure Kotlin/JVM   :capture :explore  Samuel
+    :understand  Daniel      :design  Jiya
+    :store  Jacob            :app  Neethu
+
+`:core` is a plain Kotlin library rather than an Android one, so the engine still unit-tests on a laptop with no emulator. `NoAndroidImportsTest` enforces that rather than leaving it to convention — one `import android.util.Log` added for a debug line would end it quietly and CI would start needing a device. `org.json` is `compileOnly` there: a real artifact off-device, the platform's copy on it, no duplicate classes in the APK.
+
+`:capture` owns the accessibility service and overlay declarations and the consent string, so `:app`'s manifest declares only product surfaces.
+
+Frozen in the same commit: the pack schema (`core/Pack.kt`) and the module seams (`core/Contracts.kt`), both matching `KNOWLEDGE_PACK.md`. Data and signatures only. minSdk 26 → 30 for `AccessibilityService.takeScreenshot()`.
+
+All five feature branches were created off `dev` rather than left to each person: branching off `main` by mistake means missing the split entirely and hitting a conflict in every build file.
+
+**`:capture` — four gaps, each of which alone blocks a scan.**
+
+- *No screenshots existed in Kotlin at all.* `takeScreenshotSync()` wraps the API-30 callback in a latch; `Screenshotter` downscales to a 720 px edge and walks a WebP quality ladder until the frame is under 60 KB. A full-res PNG is ~2 MB and forty of them is 80 MB against a 6 MB pack budget — the size problem is the pixels, not the JSON.
+- *Only the focused window was ever read.* `flagRetrieveInteractiveWindows` had been set in the service config since the first commit and `getWindows()` was never called, so a permission dialog was either missed or, worse, read through to the screen behind it. Now ordered by layer then window id, never arrival order.
+- *Scroll.* `dispatchSwipe` existed and nothing called it. The swipe spans the middle 60% of the area: starting at the edge catches the back gesture on one side and the notification shade on the other.
+- *`isScrollable`* was read to decide whether a node was interesting and then thrown away. Kept now, and scrollable containers survive pruning — otherwise a list screen looks finished at the fold.
+
+**`:explore` — the crawler.** Frontier, policy, safety envelope, budgets, recovery ladder. Two invariants, and everything awkward in the module protects one of them:
+
+1. *It never taps a destructive control.* Destructive candidates are never queued, so no later bug in the loop can reach one. The deny-list deliberately allows Continue, Next, Submit, Sign in and Verify — the line is irreversibility, not forward motion, and a crawler that cannot pass a sign-in never sees a screen worth mapping.
+2. *Two scans walk the app identically.* `Frontier` is a sorted set, not a `PriorityQueue`: a heap makes no promise about equal elements and most candidates on a real screen score the same, so the heap's tie-breaking alone would make two scans diverge. The policy is deliberately boring for the same reason — a sampled policy would explore better on average and make byte-identical output impossible, which is a bad trade against the headline test.
+
+The module is `android.*`-free so the whole loop runs against a fake app in unit tests. A crawler's policy cannot be tested on a phone: the thing under test and the thing measuring it are the same flaky process.
+
+**Verified:** 110 JVM tests green (77 `:core`, 33 `:explore`), `./gradlew test` green across all modules, debug APK builds at 12.0 MB.
+
+**Not verified — no device was attached this session.** `adb devices` was empty, so the kill switch during a live crawl, the ≥30-screen target, ten destructive-free scans and same-order repeat scans *on hardware* are all still open in `CHECKLIST.md`. Everything ticked there is backed by a JVM test or a green build, nothing by inspection.
 
 ### 2026-09-18 — Pivot planned and documented (no code)
 

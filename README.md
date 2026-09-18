@@ -74,6 +74,15 @@ Full schema and the stability rules: **[KNOWLEDGE_PACK.md](KNOWLEDGE_PACK.md)**.
 
 Everything depends on `:core` and nothing else horizontal, so the five workstreams run in parallel with interface-only dependencies. Full briefs, branch rules and definitions of done: **[ASSIGNMENTS.md](ASSIGNMENTS.md)**.
 
+The seven modules exist and build; the pack schema and the module seams are frozen in `core/Pack.kt` and `core/Contracts.kt`. Each module has a `README.md` naming its owner, its files and its contract.
+
+```bash
+git fetch origin && git checkout feat/<yours>
+cd android && . ./env.sh && ./gradlew test      # 149 JVM tests, no device needed
+```
+
+**Working on this? Read [EXECUTION_PLAN.md](EXECUTION_PLAN.md).** It is the runbook from here to demo day: what each person does next, in what order, which dependency gates block whom and how to check them, and the freeze → regression → rehearsal → demo phases with their exit criteria. `ASSIGNMENTS.md` says what you own; `EXECUTION_PLAN.md` says what to do this morning.
+
 ## 🚢 The bar: display-ready
 
 Not "it works on my machine with the right app open". **A judge takes the phone, picks an app we did not choose, taps Scan, and it behaves** — and when it cannot do something it says so instead of hanging.

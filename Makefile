@@ -41,7 +41,7 @@ apk-install:
 	cd android && . ./env.sh && ./gradlew :app:installDebug
 
 android-test:
-	cd android && . ./env.sh && ./gradlew :app:testDebugUnitTest
+	cd android && . ./env.sh && ./gradlew test
 
 android-clean:
 	cd android && . ./env.sh && ./gradlew clean

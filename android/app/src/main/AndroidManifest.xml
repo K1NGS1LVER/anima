@@ -1,13 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Essential Android Permissions for Autonomous GUI Automation -->
-    <uses-permission android:name="android.permission.BIND_ACCESSIBILITY_SERVICE" />
-    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <!--
+         Product-surface permissions only. Everything the agent itself needs
+         (accessibility, overlay, foreground service, vibration) is declared by
+         :capture and merged in from there.
+    -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-    <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
@@ -17,7 +16,6 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.Anima">
-
 
         <!-- Launcher Activity: judge-facing onboarding, permission gate, goal runner, 3-act demo -->
         <activity
@@ -29,29 +27,6 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-
-        <!-- Accessibility Service: UI Tree Inspection & Native Gesture Dispatch -->
-        <service
-            android:name=".AnimaAccessibilityService"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.accessibilityservice.AccessibilityService" />
-            </intent-filter>
-            <meta-data
-                android:name="android.accessibilityservice"
-                android:resource="@xml/accessibility_service_config" />
-        </service>
-
-        <!-- Floating HUD Overlay Service: WindowManager Chat-Head & Kill-Switch -->
-        <service
-            android:name=".FloatingOverlayService"
-            android:foregroundServiceType="specialUse"
-            android:exported="false">
-            <property
-                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="on-device autonomous accessibility automation agent controlled by the device owner" />
-        </service>
 
         <!-- External Automation Receiver: Tasker & MacroDroid Intent API -->
         <receiver
