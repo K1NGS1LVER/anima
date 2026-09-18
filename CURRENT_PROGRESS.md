@@ -63,6 +63,17 @@ One-time setup on a fresh machine is documented at the top of `android/env.sh`.
 
 ## Log
 
+### 2026-09-18 — Daniel: P1 unblocked work, gates G4/G5/G6 current wait
+
+Per `EXECUTION_PLAN.md`, ran the gate commands first: **G2 open** (`Contracts.kt` frozen at `ae790b9`), **G4, G5, G6 shut** (no `fixtures/packs/real-*.animapack`, no `ScanController.kt` yet — all Samuel's, hardware-gated). D2 (journeys over real paths) and D3 (cache proven on a real rescan) wait on G4/G5. So I did the unblocked items:
+
+- **D1 — on-device Gemma decision, written down.** Embedded rejected: a 2B-class TFLite Gemma is ~1.4 GB vs a 22 MB APK — ~100× over budget, structural cost, not a version issue. **Download-optional accepted:** `LocalLlm` + the repo's loopback LiteRT planner is the on-device story; wifi-off holds by construction (loopback needs no network) once weights are provisioned at setup. If the demo device can't run the loopback planner, that's cut-list #3 and a build decision for `:app`, and the switch is documented in `android/understand/README.md`. Checklist row updated with the decision; box stays open until the Redmi verifies it.
+- **D4 — the no-signal hard case, proven.** New test: a `TransferActivity` with *no* text, *no* content-desc, *no* resource-id, *no* roles — only widget classes — still yields `FORM` kind, the correct purpose ("Collects input to submit."), `TEXT`-typed fields for the bare `EditText`s, element semantics, a human screen name, and byte-deterministic output across runs.
+- **D5 (module part) — a *throwing* backend must degrade, not end the scan.** `HybridUnderstander` now wraps every `completeText` call in `safeComplete` (exception → null → next backend), so a buggy model that violates its own null-when-unavailable contract cannot kill a scan. Two new tests: throwing-then-healthy picks the healthy model; a lone throwing model falls all the way to heuristic.
+- **E2E addition — a backend that dies mid-handshake.** New `EndToEndTest`: a loopback server that accepts and closes the socket with no HTTP at all. The transport failure degrades to heuristic, and the no-signal D4 screen still comes out purpose- and type-correct on that fully degraded path — D5 exercised over a dead wire, not a mock.
+
+42 tests green in `:understand`, lint clean. The "wifi actually off" half of D5 is hardware rehearsal at T-1, not a laptop check.
+
 ### 2026-09-18 — Samuel: plan pushed to every branch; Neethu's theme rescued, her product doc dropped
 
 **Every feature branch now carries the full plan**, so nobody needs to check out `dev` to know what to do. All five are at `dev`, and each module README now ends with its owner's task order, the gate that blocks each task, and the issue that concerns it. Module READMEs are per-owner, so these never conflict across branches the way one shared `NEXT.md` would.

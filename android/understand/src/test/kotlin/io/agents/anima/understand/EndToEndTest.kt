@@ -39,6 +39,17 @@ class EndToEndTest {
         null, 1080 to 2400, UiMode.LIGHT,
     )
 
+    /** D4's hard case: no text, no content-desc, no resource-id, no roles -- only classes. */
+    private val noSignalObs = ScreenObservation(
+        "com.example.bank", "com.example.bank.ui.TransferActivity",
+        listOf(
+            PrunedNode(1, "android.widget.EditText"),
+            PrunedNode(2, "android.widget.EditText"),
+            PrunedNode(3, "android.widget.Button", clickable = true),
+        ),
+        null, 1080 to 2400, UiMode.LIGHT,
+    )
+
     /** Minimal HTTP/1.1 echo over a real loopback socket; enough for the two clients. */
     private class FakeEndpoint : AutoCloseable {
         val server = ServerSocket(0)
@@ -166,6 +177,43 @@ class EndToEndTest {
             val t = hybrid.toneOfVoice(listOf("Please verify your details."), ctx)
             assertEquals("formal", t.register)
             assertEquals(2, t.examples.size)
+        }
+    }
+
+    /**
+     * D5 over a genuinely dead wire: the endpoint accepts then immediately closes
+     * the socket with no HTTP at all. The transport fails mid-handshake, the
+     * backend returns null, and the scan must still produce a profile -- plus the
+     * D4 hard-case screen (no labels, no roles, only classes) comes out correctly
+     * typed and purpose-correct on that degraded path.
+     */
+    @Test
+    fun `a dead endpoint degrades to heuristic and the no-signal screen still gets typed fields`() {
+        ServerSocket(0).use { dead ->
+            val thread = Thread {
+                try {
+                    while (!dead.isClosed) dead.accept().use { it.close() }
+                } catch (_: Exception) {
+                    // Closing the socket ends the accept loop.
+                }
+            }
+            thread.isDaemon = true
+            thread.start()
+
+            val hybrid = HybridUnderstander(
+                listOf(LocalLlm(endpointUrl = "http://127.0.0.1:${dead.localPort}/v1/chat/completions", timeoutMs = 1500)),
+                UnderstandCache(tmp.newFolder()),
+            )
+
+            val p = hybrid.describe(noSignalObs, "scr_forgot_my_signal", ctx)
+
+            assertEquals("heuristic", hybrid.lastBackend)
+            assertEquals(ScreenKind.FORM, p.kind)
+            assertEquals("Collects input to submit.", p.purpose)
+            assertEquals("Transfer", p.name)
+            assertEquals(InputType.TEXT, p.inputSpecs.getValue(1).type)
+            assertEquals(InputType.TEXT, p.inputSpecs.getValue(2).type)
+            assertEquals("A field for text entry.", p.elementSemantics.getValue(1))
         }
     }
 }

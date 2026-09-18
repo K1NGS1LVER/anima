@@ -152,4 +152,29 @@ class HybridUnderstanderTest {
         assertEquals("formal", t.register)
         assertTrue(t.summary.isNotBlank())
     }
+
+    /** A model that violates its contract by throwing instead of returning null. */
+    private class ThrowingModel(
+        override val name: String = "thrower",
+        override val model: String? = null,
+    ) : UnderstandingModel {
+        override fun completeText(system: String, user: String, maxOutputTokens: Int): String? =
+            throw RuntimeException("simulated model crash")
+    }
+
+    @Test
+    fun `a throwing backend degrades to the next model, never ends the scan`() {
+        val h = hybrid(listOf(ThrowingModel(), FakeModel()))
+        val p = h.describe(obs, "scr_x", ctx)
+        assertEquals("fake", h.lastBackend)
+        assertEquals("Sign in", p.name)
+    }
+
+    @Test
+    fun `a single throwing backend degrades all the way to heuristic`() {
+        val h = hybrid(listOf(ThrowingModel()))
+        val p = h.describe(obs, "scr_x", ctx)
+        assertEquals("heuristic", h.lastBackend)
+        assertTrue(p.purpose.isNotBlank())
+    }
 }
