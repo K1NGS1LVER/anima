@@ -1,0 +1,13 @@
+<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
+<hierarchy rotation="0">
+  <node index="0" class="android.widget.FrameLayout" package="com.example.bank" bounds="[0,0][1080,2400]">
+    <node index="0" class="android.widget.TextView" resource-id="com.example.bank:id/title" text="Accounts" clickable="false" bounds="[48,96][600,168]" />
+    <node index="1" class="android.widget.LinearLayout" resource-id="com.example.bank:id/balance_card" content-desc="Current account balance" clickable="true" bounds="[48,216][1032,504]" />
+    <node index="2" class="android.widget.Button" resource-id="com.example.bank:id/transfer" text="Transfer" clickable="true" bounds="[48,552][528,696]" />
+    <node index="3" class="android.widget.Button" resource-id="com.example.bank:id/pay" text="Pay" clickable="true" bounds="[552,552][1032,696]" />
+    <node index="4" class="android.widget.LinearLayout" resource-id="com.example.bank:id/tx_row" text="Coffee" clickable="true" bounds="[48,744][1032,888]" />
+    <node index="5" class="android.widget.LinearLayout" resource-id="com.example.bank:id/tx_row" text="Rent" clickable="true" bounds="[48,912][1032,1056]" />
+    <node index="6" class="android.widget.LinearLayout" resource-id="com.example.bank:id/tx_row" text="Salary" clickable="true" bounds="[48,1080][1032,1224]" />
+    <node index="7" class="android.widget.TextView" resource-id="com.example.bank:id/footer" text="Updated just now" clickable="false" bounds="[48,1272][600,1320]" />
+  </node>
+</hierarchy>

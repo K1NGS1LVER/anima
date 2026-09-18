@@ -26,6 +26,14 @@ android {
 
     testOptions {
         unitTests.isReturnDefaultValues = true
+        // Extraction is a measurement, so when a token assertion fails the
+        // measured numbers are what you need to see. Without this the printout
+        // that explains the failure is swallowed.
+        unitTests.all { test ->
+            test.testLogging {
+                showStandardStreams = true
+            }
+        }
     }
 }
 
