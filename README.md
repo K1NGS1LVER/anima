@@ -15,7 +15,88 @@ Unlike inert documentation, the journeys in a pack are **replayable** — Anima 
 
 ---
 
-## 🎯 Key Innovations & Architecture
+## 🔭 How it works
+
+```
+     [ Pick an installed app ]
+                │
+                ▼
+   [ Autonomous exploration ]  ── frontier crawl: tap / scroll / back / fill
+     • no human recording          • safety envelope: never taps Delete/Pay/Send
+     • never leaves the app        • kill switch always live
+                │
+                ▼
+   [ UIFormer structural pruning ]  1.5 MB raw tree → compact Agent-DOM (>60% cut)
+                │
+                ▼
+   [ Understanding: LLM / VLM ]   screen purpose, element semantics,
+     • cloud · on-device · heuristic   form-field types with no labels or roles
+                │
+                ▼
+   [ Stable identity & assembly ]  SHA-256 structural hashing, canonical ordering
+                │
+                ▼
+        [ App Knowledge Pack ]  ≤ 512 KB · byte-identical across rescans
+                │
+      ┌─────────┴─────────┐
+      ▼                   ▼
+[ In-app viewer ]   [ Journey replay ]  ── proves the knowledge is still true
+ app map · screen        + scan diffing ── shows what changed when the app updates
+ profiles · design
+```
+
+## 📦 What a Knowledge Pack contains
+
+| Section | What's in it |
+| :--- | :--- |
+| **screens** | Stable ID, name, purpose in plain language, kind, elements, form fields, screenshot |
+| **journeys** | Named multi-screen flows with steps — and `replayable: true`, verified on a device |
+| **design_system** | Colors, typography, spacing, shape, component catalog, light/dark, tone of voice |
+| **graph** | Screen-to-screen edges: which element leads where |
+
+Full schema and the stability rules: **[KNOWLEDGE_PACK.md](KNOWLEDGE_PACK.md)**.
+
+## ✅ The three properties that are actually hard
+
+1. **Stable** — two scans of the same app version produce *byte-identical* output. Structural SHA-256 IDs that exclude all dynamic content, canonical ordering, and every LLM result cached by screen hash.
+2. **Compact** — `pack.json` ≤ 512 KB for a 40-screen app, enforced by a test that fails the build.
+3. **Machine-readable** — flat and predictable, built for another AI to consume.
+
+## 👥 Team & workstreams
+
+| Person | Owns | Module | Branch |
+| :--- | :--- | :--- | :--- |
+| **Samuel** | Exploration engine + integration | `:capture` `:explore` | `feat/explorer` |
+| **Daniel** | Understanding — LLM/VLM | `:understand` | `feat/understanding` |
+| **Jacob** | Schema, stable IDs, store, diffing | `:core` `:store` | `feat/knowledge-store` |
+| **Jiya** | Design extraction + rebuild test | `:design` | `feat/design-extract` |
+| **Neethu** | Product app & viewer | `:app` | `feat/app-ui` |
+
+Everything depends on `:core` and nothing else horizontal, so the five workstreams run in parallel with interface-only dependencies. Full briefs, branch rules and definitions of done: **[ASSIGNMENTS.md](ASSIGNMENTS.md)**.
+
+## 🚢 The bar: display-ready
+
+Not "it works on my machine with the right app open". **A judge takes the phone, picks an app we did not choose, taps Scan, and it behaves** — and when it cannot do something it says so instead of hanging.
+
+Performance budgets, device matrix, failure plan, the freeze → regression → rehearsal schedule, and the release checklist: **[RELEASE_READINESS.md](RELEASE_READINESS.md)**.
+
+## 📚 Documentation map
+
+| Doc | What it's for |
+| :--- | :--- |
+| **[PLAN.md](PLAN.md)** | What we're building, what transfers, decisions and risks |
+| **[KNOWLEDGE_PACK.md](KNOWLEDGE_PACK.md)** | The schema contract — frozen Day 0, everyone codes against it |
+| **[ASSIGNMENTS.md](ASSIGNMENTS.md)** | Per-person briefs, branches, done-when |
+| **[RELEASE_READINESS.md](RELEASE_READINESS.md)** | Shipping and demo: budgets, devices, rehearsal, release checklist |
+| **[CHECKLIST.md](CHECKLIST.md)** | Every task tied to the command that proves it |
+| **[CURRENT_PROGRESS.md](CURRENT_PROGRESS.md)** | Running log and environment state |
+| **[dev_plan.md](dev_plan.md)** | Architectural SSOT and decisions log |
+
+---
+
+## 🎯 The Execution Engine (shipped, hardware-verified)
+
+*The on-device agent below shipped in Phase 9 and was verified on a physical device. It now serves as the exploration execution plane and powers journey replay.*
 
 ```
                   [ Natural Language Goal ]
@@ -141,14 +222,16 @@ gh run download --branch dev-sam --name anima-debug-apk
 
 ---
 
-## 🗺 Roadmap — what is not done yet
+## 🗺 Status — what is and isn't built
 
-Anima replays compiled skills well. It does not yet *learn* well, and the docs say so rather than letting you find out:
+**Shipped and hardware-verified:** the on-device execution engine — accessibility capture, UIFormer pruning, weighted locators, self-healing replay, safety guards, kill switch. Verified on a physical device driving real Settings screens at 0 LLM calls. Python 25 tests, Kotlin 76 tests, CI builds the APK on every push.
 
-- **The cold path compiles exactly one step.** Multi-step flows ("set an alarm for 7:30") cannot currently be learned — only replayed from hand-written fixtures. Phase 10 replaces the one-shot compile with a bounded plan→act→observe loop.
-- **The APK contains no model.** Grounding is keyword matching against on-screen labels, and its rules were fitted to one OEM skin. Phase 10 puts a real planner behind the existing `Planner` interface — on-device Gemma by preference, so the zero-network property survives — which is what makes it work across any make and model.
+**Planned, not built** (the pivot workstreams — see [CHECKLIST.md](CHECKLIST.md)):
 
-See [PLAN.md](PLAN.md) and [dev_plan.md §14](dev_plan.md) for the full plan.
+- Autonomous exploration: frontier crawl, screenshots, scroll, multi-window. *None of this exists yet* — there is no screenshot capability in the Kotlin runtime at all, and no scroll in the device interface.
+- LLM/VLM understanding. The APK contains no model today; grounding is keyword matching whose rules were fitted to one OEM skin.
+- The Knowledge Pack schema, stable IDs and store. The existing screen-signature function is unusable for this — it relies on a per-process-salted hash and produces different IDs on every run.
+- Design extraction, the viewer, and login/OTP gate handling — all greenfield.
 
 ---
 
