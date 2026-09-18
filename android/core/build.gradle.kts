@@ -24,6 +24,9 @@ dependencies {
     // with the platform's. Tests need a real implementation on the JVM.
     compileOnly("org.json:json:20240303")
 
+    implementation(kotlin("reflect"))
+
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20240303")
+    testImplementation(kotlin("test"))
 }
