@@ -47,6 +47,19 @@ One-time setup on a fresh machine is documented at the top of `android/env.sh`.
 
 ## Log
 
+### 2026-09-18 — Understanding module: full chain implemented and hermetic-tested (`feat/understanding`)
+
+`:understand` now implements the frozen `ScreenUnderstander` contract. `cedc6b3` + follow-up (38 unit tests green across `:understand`, whole `./gradlew test` green):
+
+- **Backends** — `CloudVlm` (Gemini 2.5 Flash REST, temp 0, null without key), `LocalLlm` (OpenAI-style client for a local model server; embedded Gemma/LiteRT deferred by decision — the APK stays dependency-free, matching the `LocalLiteRTPlanner` Python pattern), `HeuristicUnderstander` (deterministic floor: class- and vocabulary-driven kinds, typed inputs, journeys, tone).
+- **Stability mechanics** — `UnderstandCache` (durable file-backed, keyed by screen/journey/tone id) makes rescan reuse the first run's exact bytes; `HybridUnderstander` exposes `lastBackend`/`cacheHits` for `scan.understander`. Temperature 0 wired into every backend.
+- **Gate** — `JsonResponse` brace-depth extraction, `ScreenProfileJson` strict name+purpose requirement with in-place repair (unknown kind → `OTHER`, unknown input type → drop that input). Malformed model output degrades to heuristic, never crashes.
+- **End-to-end slice** — hermetic test drives `LocalLlm` over a real loopback HTTP socket and asserts: the request crosses the wire with `temperature: 0`, the reply parses into a profile, the cache persists, a rescan makes **zero** second network calls, garbage from the live backend degrades to heuristic, and journey/tone complete over the same endpoint.
+
+Bugs the tests caught while writing them: camelCase `LoginActivity` defeated `\b`-word matching (`slug()` splits on capitals), Kotlin `replaceFirst(String,…)` is literal so `"Activity$"` never stripped, the DOM budget counted element lengths but not separators, and Java's `Expect: 100-continue` deadlocks a loopback server that doesn't honour it — the fake endpoint now does, like a real server.
+
+One checklist item stays open: embedded `OnDeviceLlm` (Gemma via MediaPipe/LiteRT). Un-ticked by the explicit rule — nothing is ticked on the strength of intent.
+
 ### 2026-09-18 — Samuel: Day 0 module split, then `:capture` and `:explore` (`ae790b9`, `c43b5a7`, `3474b9b`, `d3ceb5a`)
 
 **Day 0 — the split (`dev`).** One `:app` module meant five people editing one build file and one manifest. Now seven modules, one owner each, one horizontal dependency (`:core`):
