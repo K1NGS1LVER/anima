@@ -1,24 +1,31 @@
 # Current Progress
 
-> Running log for Phase 9. Newest entry first. Update this at every commit.
-> Context: [PLAN.md](PLAN.md) · Task status: [CHECKLIST.md](CHECKLIST.md)
+> Running log. Newest entry first. Update at every commit.
+> Plan: [PLAN.md](PLAN.md) · Contract: [KNOWLEDGE_PACK.md](KNOWLEDGE_PACK.md) · Briefs: [ASSIGNMENTS.md](ASSIGNMENTS.md) · Status: [CHECKLIST.md](CHECKLIST.md)
 
 ## Where to pick up
 
-**Phase 9 is shipped.** `dev-sam` is pushed, CI green, APK verified on a physical Redmi Note 11 driving real Settings screens.
+⚠️ **The project pivoted.** Anima is now an **autonomous app cartographer**: it explores an unfamiliar Android app hands-off and emits a structured App Knowledge Pack. It is no longer a task-execution agent.
 
-**Phase 10 is planned and documented, not started** — see [PLAN.md](PLAN.md) and [dev_plan.md §14](dev_plan.md). Two workstreams:
+Read in this order: [PLAN.md](PLAN.md) → [KNOWLEDGE_PACK.md](KNOWLEDGE_PACK.md) (the contract) → your section of [ASSIGNMENTS.md](ASSIGNMENTS.md).
 
-1. **Multi-step cold planning.** The cold path compiles exactly one step today (`anima.py:1271`, `AnimaRuntime.kt:179`), so no flow can ever be learned. Replace it with a bounded plan→act→observe loop. Start here — it is useful with no model at all, and it defines the interface changes Workstream B depends on.
-2. **A real planner behind the seam.** `AnimaEngine.kt:15` hardcodes the heuristic. Every planner rule from Phase 9 is fitted to one MIUI device; a model reading the pruned Agent-DOM is what makes this work on any make and model.
+**Next action: Day 0, everyone together, ~3 hours.** Split the Gradle modules, freeze the pack schema, ship golden fixtures, agree interfaces, create branches. Nothing else starts until the schema is frozen — changing it later stalls four people at once.
 
-**Order of work:** loop → multi-screen demo fixture → destructive-action guard → `PlannerFactory` + flavors → on-device model → cross-OEM validation.
+**Team and branches**
 
-**Do not skip the cross-OEM bar.** Phase 10 is not complete when it works on the Redmi; it is complete when the same goal runs on three unrelated skins with no per-OEM code. Without that bar this phase just produces a second set of device-specific rules.
+| Person | Owns | Branch |
+| :--- | :--- | :--- |
+| Samuel | Exploration engine + integration | `feat/explorer` |
+| Daniel | Understanding (LLM/VLM) | `feat/understanding` |
+| Jacob | Schema, stable IDs, store, diffing | `feat/knowledge-store` |
+| Jiya | Design extraction + rebuild test | `feat/design-extract` |
+| Neethu | Product app & viewer | `feat/app-ui` |
 
-**Grab a build without a toolchain:** `gh run download --branch dev-sam --name anima-debug-apk`.
+**The two things most likely to be got wrong**, both called out in the docs:
+1. Stability. `compute_screen_signature` (`anima.py:869`) uses Python's salted `hash()` and produces different IDs every run — it must be replaced, not ported. And LLM output must be cached by structural hash or the pack will never be byte-stable.
+2. Crawler safety. An unattended agent inside a banking app needs a destructive-control deny-list, package-boundary enforcement and a live kill switch before it touches a real app.
 
-**Demo tip:** run "turn on bluetooth" then "toggle wifi" back to back — the sequence that exposed the wrong-screen bug, and the strongest live proof the agent knows which screen it is on.
+**Phase 9 (shipped) stays on `dev-sam`** as history and as the source of the components that carry over.
 
 ## Environment (reproduce with `source android/env.sh`)
 
@@ -35,6 +42,16 @@
 One-time setup on a fresh machine is documented at the top of `android/env.sh`.
 
 ## Log
+
+### 2026-09-18 — Pivot planned and documented (no code)
+
+The project pivoted from task execution to autonomous app exploration. Wrote the full plan into the repo: `PLAN.md` (overview and decisions), `KNOWLEDGE_PACK.md` (the schema contract — frozen Day 0, everyone codes against it), `ASSIGNMENTS.md` (per-person briefs, branches, definitions of done), `dev_plan.md` §15 (architecture and decisions log), and Day-0 + per-workstream sections in `CHECKLIST.md`. No implementation landed.
+
+An audit of what transfers: `UIFormer` pruning is the single most valuable reuse — it already solves the 1.5MB compaction problem the brief names, with >60% reduction asserted in tests. The accessibility capture plane, popup/biometric guards and the kill switch carry over. `PageTransitionGraph` has the right *shape* for an app map but its hash function is unusable.
+
+What has to be built from nothing, and was not obvious before the audit: **no screenshot capability exists in Kotlin at all**; `AgentDevice` has no scroll (the service can `dispatchSwipe`, nothing calls it); `isScrollable` is read but never stored on a node; only `rootInActiveWindow` is ever read despite `flagRetrieveInteractiveWindows` already being set; and there is no credential, OTP or notification-listener capability anywhere, so the login/KYC requirement is entirely greenfield.
+
+The decision worth remembering: **the pack is executable**. Journeys carry enough structure to be replayed on a real device to verify they are still true, which reuses the hardware-verified replay engine from Phase 9 and answers the brief's own framing — knowledge breaking when the app updates — with a mechanism rather than a promise.
 
 ### 2026-09-18 — Phase 10 planned and documented (no code)
 

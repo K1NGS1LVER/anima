@@ -3,7 +3,7 @@
 > **Document Classification:** Internal Technical Blueprint & Developer Roadmap  
 > **Target Platform:** Android (Native APK / Embedded SDK) + Host-Tethered Python Runtime  
 > **Audience:** Core Engineering Contributors, AI Researchers, and Hackathon Collaborators  
-> **Status:** Phases 1–9 complete. Phase 9 rebuilt the Android module from scaffolding into a working APK, verified on a physical device — see §13.
+> **Status:** ⚠️ **Project pivoted — see §15.** Anima is now an autonomous app cartographer, not a task-execution agent. Phases 1–9 shipped and several components carry over; Phase 10 (multi-step planning) is superseded. Team plan: `PLAN.md`, `ASSIGNMENTS.md`, `KNOWLEDGE_PACK.md`.
 
 ---
 
@@ -552,3 +552,76 @@ Phase 10 renames the counter to `plannerCalls` and reports `llmCalls` only when 
 #### 14.5.5 Device-Agnosticism Is the Acceptance Bar
 - **Decision:** Phase 10 is not complete until a goal runs on ≥3 unrelated OEM skins with no per-OEM code.
 - **Rationale:** every Phase 9 planner rule was fitted to one MIUI device. Without a cross-device bar, Phase 10 would produce a second set of device-specific rules and call it generalisation.
+
+---
+
+## 15. The Pivot — Autonomous App Cartographer
+
+### 15.1 What Changed and Why
+
+Anima was built as a task-execution agent: a natural-language goal becomes taps, and a successful trajectory compiles into a replayable skill. The challenge we are now building for is a different problem — **explore an unfamiliar Android app with no goal at all, and come away with a complete structured understanding of it**: every screen, what each does, the elements and form fields on it, the journeys connecting them, and the app's brand and design language.
+
+The underlying insight is the same one that motivated Anima: knowledge about an app is expensive to acquire by hand and stale the moment the app updates. The difference is what we emit. Anima emitted *procedures*; the cartographer emits a **declarative App Knowledge Pack** that another AI reads.
+
+Full plan in `PLAN.md`; the schema contract is `KNOWLEDGE_PACK.md`; per-person briefs are `ASSIGNMENTS.md`.
+
+### 15.2 What Carries Over
+
+Phase 9 left a working on-device agent verified on real hardware, and the useful parts transfer cleanly:
+
+| Asset | Transfers as |
+| :--- | :--- |
+| `UIFormer` pruning | The compaction engine. Already >60% reduction, already solving the 1.5MB problem the brief names. |
+| Accessibility capture and gesture dispatch | The exploration execution plane. |
+| `PageTransitionGraph` *shape* | The app map. Nodes are screens, edges are transitions — but the hash function is replaced, see §15.4. |
+| `PopupInterceptor`, `BiometricGuard` | Crawl hygiene: dismiss consent dialogs, treat biometric prompts as a boundary. |
+| `FloatingOverlayService` kill switch | Safety for an unattended crawler in an unfamiliar app. |
+| Deterministic JSON discipline (`SkillJson.kt:18`) | Byte-stable pack output, now a hard requirement rather than a nicety. |
+| Skill replay engine | **Journey verification** — see §15.3. |
+
+Built from nothing: exploration policy, screenshots, scroll, LLM/VLM understanding, design extraction, the pack schema and store, gate passing with test credentials, and the viewer.
+
+### 15.3 The Differentiator: an Executable Knowledge Pack
+
+Documentation of an app is inert. Ours will not be: journeys in the pack carry enough structure to be **replayed on a real device to verify they are still true**. That is precisely the replay engine Phase 9 shipped and hardware-verified.
+
+This answers the brief's own framing of the problem — *knowledge breaks the moment the app updates* — with a mechanism rather than a promise. A pack that can re-verify itself against a new app version, and diff what changed, is a materially different product from a prettier JSON file.
+
+### 15.4 Stability Is the Hard Requirement, and Our Current Code Fails It
+
+The brief requires output that is stable across repeat scans. `PageTransitionGraph.compute_screen_signature` (`anima.py:869`) cannot deliver that, and must not be ported:
+
+- It uses Python's built-in `hash()` on a string, which is **salted per process**. Two runs of the same scan produce different screen IDs.
+- It folds `n.id` — a prune-order index — into the signature whenever a node lacks a resource-id or text, so any reordering changes the hash.
+- It reads only the first ten nodes, so screens sharing a toolbar collide.
+- It truncates to four digits, which collides at any real scale.
+
+The replacement is specified in `KNOWLEDGE_PACK.md`: SHA-256 over a canonical structural fingerprint — sorted resource-ids plus a class-path skeleton — explicitly excluding text, counts, bounds and timestamps. Element IDs are derived the same way and must survive changed row text.
+
+A second, less obvious threat to stability is the model itself: `name`, `purpose` and `semantic` are LLM-authored, and models are not deterministic. Temperature 0 is necessary but insufficient. **Every model result is cached keyed by structural hash** so a rescan reuses prior text verbatim. The acceptance test is byte-identical `screens[]` across two consecutive scans.
+
+### 15.5 Architecture: Modules, One Owner Each
+
+The repo is single-module. Five people working simultaneously in one module is a merge-conflict machine, so it splits into `:core`, `:capture`, `:explore`, `:understand`, `:design`, `:store`, `:app`. Everything depends on `:core` and nothing else horizontal. The split is mechanical because the `engine` package already avoids `android.*` imports specifically so it unit-tests on a plain JVM.
+
+### 15.6 Decisions Log (continued from §14.5)
+
+#### 15.6.1 Hybrid, Swappable Understanding Backends
+- **Decision:** one `ScreenUnderstander` interface with cloud, on-device and heuristic implementations; heuristic is the floor and always available.
+- **Rationale:** the brief points at on-device models, but exploration needs many inferences per scan and on-device latency is a live-demo risk. A swappable seam lets us demo fast and still tell the privacy story honestly.
+
+#### 15.6.2 No Demo Mode
+- **Decision:** the product scans real apps. Fixtures exist for development and tests, never as a staged product path.
+- **Rationale:** the previous 3-act demo was theatre built on a hermetic single-screen fixture. A judge asking "scan this app instead" must get a real answer.
+
+#### 15.6.3 Retire the Task-Execution Scaffolding
+- **Decision:** `DemoDevice`, `DemoScript`, the 3-act demo, `run_benchmark`, `IntentRouter`, `TaskerReceiver` and the skill-replay CLI flags are removed — roughly 1,000 lines.
+- **Rationale:** all of it exists to serve *goal → replay a specific tap sequence*, the opposite of exploring never-seen screens. `run_benchmark` in particular compares against hand-typed constants rather than measurements, which is a pitch artifact, not a benchmark.
+
+#### 15.6.4 minSdk 26 → 30
+- **Decision:** raise minSdk to 30.
+- **Rationale:** `AccessibilityService.takeScreenshot()` is API 30 and far cleaner than MediaProjection, which needs a consent dialog per session. Screenshots are required for design extraction, the viewer and the rebuild test. The cost is a small slice of old devices.
+
+#### 15.6.5 Crawler Safety Is Part of the Product
+- **Decision:** destructive-control deny-list, package-boundary enforcement, recovery ladder, hard budgets and a live kill switch are mandatory before any crawl of a real app.
+- **Rationale:** an unattended agent inside a banking app is the genuine risk in this project. Single-step automation could mis-tap once; a crawler can reach a payment or deletion control on its own.
