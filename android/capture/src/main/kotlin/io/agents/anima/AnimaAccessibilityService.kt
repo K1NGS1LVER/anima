@@ -4,6 +4,7 @@ import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
 import android.graphics.Path
 import android.graphics.Rect
 import android.os.Build
@@ -11,9 +12,14 @@ import android.os.Bundle
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.util.Log
+import android.view.Display
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import android.view.accessibility.AccessibilityWindowInfo
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * AnimaAccessibilityService
@@ -38,7 +44,27 @@ class AnimaAccessibilityService : AccessibilityService() {
 
         /** Depth guard for [rawWindowDump] so a pathological tree can never hang a run. */
         private const val MAX_DUMP_DEPTH = 40
+
+        /**
+         * Windows above this many are a symptom, not a screen: a toast storm or
+         * a leaking overlay. Capturing them all would blow the step budget.
+         */
+        private const val MAX_WINDOWS = 8
+
+        /** The platform rate-limits screenshots; waiting longer than this is waiting for nothing. */
+        private const val SCREENSHOT_TIMEOUT_MS = 2500L
     }
+
+    /**
+     * The last activity announced by a window-state change.
+     *
+     * There is no supported way to ask "what activity is in front" from an
+     * accessibility service; the only place the name appears is in the class
+     * name of a TYPE_WINDOW_STATE_CHANGED event, and only when the foreground
+     * window is an Activity. So this is a best-effort signal -- good enough to
+     * strengthen a screen fingerprint, never good enough to be required by it.
+     */
+    private val lastActivity = AtomicReference<String?>(null)
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -59,6 +85,10 @@ class AnimaAccessibilityService : AccessibilityService() {
         // Auto-dismiss known transient system popups or permissions if flagged
         if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
             val pkg = event.packageName?.toString() ?: ""
+            val cls = event.className?.toString()
+            if (!cls.isNullOrEmpty() && pkg.isNotEmpty() && cls.startsWith(pkg)) {
+                lastActivity.set(cls)
+            }
             if (pkg.contains("com.android.permissioncontroller") || pkg.contains("packageinstaller")) {
                 handlePermissionDialog(event)
             }
@@ -176,7 +206,8 @@ class AnimaAccessibilityService : AccessibilityService() {
                     isClickable = node.isClickable,
                     isEditable = node.isEditable,
                     bounds = bounds,
-                    isChecked = node.isChecked
+                    isChecked = node.isChecked,
+                    isScrollable = node.isScrollable
                 )
             )
         }
@@ -208,6 +239,112 @@ class AnimaAccessibilityService : AccessibilityService() {
                 ?: child.contentDescription?.toString()?.trim().takeUnless { it.isNullOrEmpty() }
             if (label != null) out.add(label)
             collectLabels(child, out, limit)
+        }
+    }
+
+    /**
+     * Every readable window, not just the focused one.
+     *
+     * `rootInActiveWindow` is one window. A permission dialog, a bottom sheet,
+     * an autocomplete popup and a system toast are separate windows, and a
+     * crawler that reads only the active one either misses the dialog entirely
+     * or -- worse -- reads the screen *behind* it and taps a control the user
+     * cannot currently see. `flagRetrieveInteractiveWindows` has been set in
+     * accessibility_service_config.xml since the first commit; nothing ever
+     * called getWindows() to use it.
+     *
+     * Ordering is by layer descending then window id, never by the system's
+     * arrival order, because two scans of the same screen have to produce the
+     * same node list in the same sequence for the pack to be byte-identical.
+     */
+    fun captureAllWindowNodes(): List<AccessibilityNode> {
+        val ordered = try {
+            windows.filterNotNull()
+                .filter { it.type != AccessibilityWindowInfo.TYPE_INPUT_METHOD }
+                .sortedWith(compareByDescending<AccessibilityWindowInfo> { it.layer }.thenBy { it.id })
+                .take(MAX_WINDOWS)
+        } catch (e: Exception) {
+            // Some OEM builds throw out of getWindows() while the window list is
+            // being rebuilt. One missed frame is not worth ending a scan.
+            Log.w(TAG, "getWindows() failed; falling back to the active window", e)
+            emptyList()
+        }
+        if (ordered.isEmpty()) return captureCurrentWindowNodes()
+
+        val nodes = mutableListOf<AccessibilityNode>()
+        val seen = HashSet<String>()
+        for (window in ordered) {
+            val root = try { window.root } catch (e: Exception) { null } ?: continue
+            if (root.packageName?.toString() == packageName) continue
+            val fromThisWindow = mutableListOf<AccessibilityNode>()
+            traverseNode(root, fromThisWindow)
+            for (node in fromThisWindow) {
+                // Overlapping windows report the same node twice. Identity here
+                // is the tuple that a locator would match on anyway.
+                val key = "${node.className}|${node.resourceId}|${node.text}|${node.bounds.flattenToString()}"
+                if (seen.add(key)) nodes.add(node)
+            }
+        }
+        return nodes
+    }
+
+    /** The activity in front, when the system last told us. Never required, only used. */
+    fun currentActivity(): String? = lastActivity.get()
+
+    /**
+     * A screenshot of the display, synchronously.
+     *
+     * API 30+, which is why minSdk moved to 30. The alternative, MediaProjection,
+     * puts a consent dialog in front of the user once per session -- acceptable
+     * for a screen recorder, not for an app whose whole proposition is that it
+     * explores unattended.
+     *
+     * @return the raw bitmap, or null on refusal. The platform rate-limits this
+     *   call, and a refused screenshot is normal: the scan continues without
+     *   pixels for that screen rather than stalling on them.
+     */
+    fun takeScreenshotSync(timeoutMs: Long = SCREENSHOT_TIMEOUT_MS): Bitmap? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return null
+        val latch = CountDownLatch(1)
+        val result = AtomicReference<Bitmap?>(null)
+        try {
+            takeScreenshot(
+                Display.DEFAULT_DISPLAY,
+                { it.run() },
+                object : TakeScreenshotCallback {
+                    override fun onSuccess(screenshot: ScreenshotResult) {
+                        try {
+                            val buffer = screenshot.hardwareBuffer
+                            val bitmap = Bitmap.wrapHardwareBuffer(buffer, screenshot.colorSpace)
+                            // Hardware bitmaps cannot be read pixel by pixel, and
+                            // every consumer here -- WebP encoding, colour
+                            // quantization -- needs to do exactly that.
+                            result.set(bitmap?.copy(Bitmap.Config.ARGB_8888, false))
+                            bitmap?.recycle()
+                            buffer.close()
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Screenshot arrived but could not be read", e)
+                        } finally {
+                            latch.countDown()
+                        }
+                    }
+
+                    override fun onFailure(errorCode: Int) {
+                        Log.d(TAG, "Screenshot refused, code=$errorCode")
+                        latch.countDown()
+                    }
+                },
+            )
+        } catch (e: Exception) {
+            Log.w(TAG, "takeScreenshot() threw", e)
+            return null
+        }
+        return try {
+            latch.await(timeoutMs, TimeUnit.MILLISECONDS)
+            result.get()
+        } catch (e: InterruptedException) {
+            Thread.currentThread().interrupt()
+            null
         }
     }
 
@@ -375,5 +512,12 @@ data class AccessibilityNode(
     val isClickable: Boolean,
     val isEditable: Boolean,
     val bounds: Rect,
-    val isChecked: Boolean = false
+    val isChecked: Boolean = false,
+    /**
+     * Read since the first version to decide whether a node was interesting,
+     * and then discarded. The crawler needs it kept: without it there is no way
+     * to tell a screen it has finished reading from one with more content below
+     * the fold, and on a list screen most elements are below the fold.
+     */
+    val isScrollable: Boolean = false
 )

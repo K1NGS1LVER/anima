@@ -42,6 +42,8 @@ class AccessibilityDevice(
                 contentDesc = node.contentDescription?.trim()?.takeIf { it.isNotEmpty() },
                 clickable = node.isClickable,
                 checked = node.isChecked,
+                scrollable = node.isScrollable,
+                editable = node.isEditable,
                 bounds = bounds,
                 center = center,
                 relBounds = relBounds,
