@@ -9,6 +9,10 @@ object CanonicalJson {
         return serialize(obj) ?: "null"
     }
 
+    private fun camelToSnake(str: String): String {
+        return str.replace(Regex("([a-z])([A-Z]+)"), "$1_$2").lowercase()
+    }
+
     private fun serialize(obj: Any?): String? {
         if (obj == null) return null
         
@@ -28,6 +32,12 @@ object CanonicalJson {
                 return obj.toString()
             }
             is Boolean -> return obj.toString()
+            is Enum<*> -> {
+                // If it has a 'wire' property, we can use that, otherwise lowercase
+                val wireProp = obj::class.memberProperties.find { it.name == "wire" }
+                val wireVal = wireProp?.getter?.call(obj) as? String
+                return "\"" + (wireVal ?: obj.name.lowercase()) + "\""
+            }
             is List<*> -> {
                 val items = obj.filterNotNull()
                 if (items.isEmpty()) return null
@@ -54,12 +64,14 @@ object CanonicalJson {
             }
             else -> {
                 val properties = obj::class.memberProperties
-                val sortedProps = properties.sortedBy { it.name }
-                val entries = sortedProps.mapNotNull { prop ->
+                // Map the property names to snake_case and sort them
+                val propsWithNames = properties.map { it to camelToSnake(it.name) }.sortedBy { it.second }
+                
+                val entries = propsWithNames.mapNotNull { (prop, snakeName) ->
                     @Suppress("UNCHECKED_CAST")
                     val value = (prop as KProperty1<Any, *>).get(obj)
                     val serializedValue = serialize(value)
-                    if (serializedValue == null) null else "\"${escapeString(prop.name)}\":" + serializedValue
+                    if (serializedValue == null) null else "\"${escapeString(snakeName)}\":" + serializedValue
                 }
                 if (entries.isEmpty()) return null
                 return "{" + entries.joinToString(",") + "}"
