@@ -79,12 +79,26 @@ Each gate is a real command. Run it; do not ask.
 
 | # | Gate | Blocks | Check |
 | :--- | :--- | :--- | :--- |
-| **G1** | Golden fixture exists | Jiya, Neethu | `ls fixtures/packs/*.animapack` — ✅ **open** |
+| **G1** | Golden fixture is *usable* | Jiya, Neethu | `unzip -l fixtures/packs/golden.animapack` must list `pack.json` **and** `screens/*.webp`, and `pack.json` must have a non-empty `screens[]` — ⚠️ **shut, see below** |
 | **G2** | `:core` contracts frozen | everyone | `git log --oneline -1 -- android/core/src/main/kotlin/io/agents/anima/core/Contracts.kt` — ✅ **open** |
 | **G3** | `KnowledgeStore` really persists | Neethu's viewer, Jacob's diff, saved-pack fallback | `grep -A2 "override fun save" android/store/src/main/kotlin/io/agents/anima/store/KnowledgeStore.kt` — must not be an empty body |
 | **G4** | End-to-end scan produces a pack | realistic work for Jiya and Neethu, all hardware claims | `ls fixtures/packs/real-*.animapack` |
 | **G5** | Two real scans of one app exist | stability test, diff demo | `ls fixtures/packs/real-*-scan{1,2}.animapack` |
 | **G6** | `ScanController` API published | Neethu's scan-control screen | `ls android/explore/src/main/kotlin/io/agents/anima/explore/ScanController.kt` |
+
+### G1 is shut, and I said otherwise — correcting it
+
+`fixtures/packs/golden.animapack` exists, which is what I originally checked, but the content is a placeholder and not usable:
+
+- its single entry is named **`dummy_pack.json`**, while `PackArchive.importPack()` looks for `pack.json` — so the fixture does not load through our own importer;
+- `screens[]` and `journeys[]` are empty, and there is no `design_system` or `graph`;
+- **there are no screenshots in it at all**, and a screenshot is the entire input to `:design`.
+
+Checking that a file exists is not checking that it is worth anything. The gate above is rewritten to assert content.
+
+**Jacob:** replace it with a fixture that round-trips through `PackArchive`, or delete it and let Samuel's first real scan (G4) be the first fixture. A placeholder that four people are told to build against is worse than an empty directory, because it is silently wrong rather than visibly missing.
+
+**Jiya and Neethu:** you are not blocked in practice — see Jiya's section for how to make your own input in ten minutes. But do not build test expectations against `golden.animapack` as it stands.
 
 **If your gate is shut:** do the work in your section marked *"unblocked now"*. Do not invent the other side of an interface — raise it in the channel and keep moving on something else. Every hour spent building against a guessed interface is an hour spent twice.
 
@@ -214,9 +228,22 @@ Cloud off, model absent, malformed JSON, timeout — each must degrade to the ne
 
 ---
 
-## Jiya — `feat/design-extract` — **unblocked now, G1 is open**
+## Jiya — `feat/design-extract` — **nothing shipped yet; start with Y0**
 
-`fixtures/packs/golden.animapack` exists. Everything below unit-tests from a static screenshot and a static node list, with no device.
+Everything below unit-tests from a static screenshot and a static node list, with no device and no crawler.
+
+### Y0. Make your own input first — ten minutes, and it unblocks the rest
+
+The shared fixture is a placeholder with no screenshots in it (see G1 above), and your module's entire input is pixels plus bounds. So make your own rather than wait:
+
+```bash
+adb shell screencap -p /sdcard/s.png && adb pull /sdcard/s.png    # any app, any phone
+adb shell uiautomator dump && adb pull /sdcard/window_dump.xml    # the matching tree
+```
+
+Then in a test: `UIFormer.prune(xml, 1080 to 2400)` gives you the `List<PrunedNode>`, and the PNG bytes plus those nodes build a `ScreenObservation` — the exact type `DesignExtractor.extract()` takes. Commit three or four of these under `android/design/src/test/resources/` as your own fixtures.
+
+Do this even after a real pack exists. A fixture you control, from an app whose brand you can see with your own eyes, is what lets you assert "primary is this green" rather than "primary is whatever it was last time".
 
 ### Y1. Colors
 
