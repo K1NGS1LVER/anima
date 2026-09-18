@@ -26,11 +26,14 @@ android {
 
     testOptions {
         unitTests.isReturnDefaultValues = true
+        unitTests.isIncludeAndroidResources = true
     }
 }
 
 dependencies {
     api(project(":core"))
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.robolectric:robolectric:4.11.1")
     testImplementation("org.json:json:20240303")
+    testImplementation("org.jetbrains.kotlin:kotlin-test:1.9.22")
 }
