@@ -94,6 +94,28 @@ class HeuristicUnderstanderTest {
     }
 
     @Test
+    fun `D4 hard case - no signal anywhere still yields a correct purpose and typed fields`() {
+        // The brief's hardest ask: no text, no content-desc, no resource-id, no roles --
+        // only the widget classes survive, and the puzzle is doing useful work from those.
+        val o = obs("com.example.bank.ui.TransferActivity", listOf(
+            node(1, "android.widget.EditText"),
+            node(2, "android.widget.EditText"),
+            node(3, "android.widget.Button", clickable = true),
+        ))
+        val p = u.describe(o, "scr_x", ctx)
+
+        assertEquals(ScreenKind.FORM, p.kind)
+        assertEquals("Collects input to submit.", p.purpose)
+        assertEquals(InputType.TEXT, p.inputSpecs.getValue(1).type)
+        assertEquals(InputType.TEXT, p.inputSpecs.getValue(2).type)
+        assertEquals("A field for text entry.", p.elementSemantics.getValue(1))
+        assertEquals("A tappable button.", p.elementSemantics.getValue(3))
+        assertEquals("Transfer", p.name)
+        // Fully deterministic: the same screen twice is the same profile.
+        assertEquals(p, u.describe(o, "scr_x", ctx))
+    }
+
+    @Test
     fun `recyclerview screen is LIST`() {
         val o = obs("com.example.bank.ui.HistoryActivity", listOf(
             node(1, "androidx.recyclerview.widget.RecyclerView"),
