@@ -48,7 +48,7 @@ class HeuristicUnderstander : ScreenUnderstander {
     override fun describeJourney(path: List<JourneyStep>, screens: List<Screen>, context: ScanContext): Journey {
         val id = JourneyLanguage.journeyId(path)
         val name = JourneyLanguage.name(path, screens, context)
-        val goal = JourneyLanguage.goal(screens, context)
+        val goal = JourneyLanguage.goal(path, screens, context)
         return Journey(
             id = id,
             name = name,
@@ -192,20 +192,22 @@ object JourneyLanguage {
         "jr_" + Sha.sha256(path.joinToString("|") { "${it.screen}:${it.element}:${it.action.wire}" }).take(8)
 
     fun name(path: List<JourneyStep>, screens: List<Screen>, context: ScanContext): String {
-        val last = path.lastOrNull() ?: return "Open ${context.appLabel}"
-        val lastId = last.screen
-        val lastScreen = screens.firstOrNull { it.id == lastId }
-        val firstScreen = screens.firstOrNull()
-        if (screens.size >= 2 && firstScreen != null && lastScreen != null) {
-            val a = firstScreen.name ?: "Start"
+        val first = path.firstOrNull() ?: return "Open ${context.appLabel}"
+        val last = path.lastOrNull()
+        val startScreen = screens.firstOrNull { it.id == first.screen }
+        val lastScreen = last?.let { screens.firstOrNull { s -> s.id == it.screen } }
+        if (startScreen != null && lastScreen != null && startScreen.id != lastScreen.id) {
+            val a = startScreen.name ?: "Start"
             val b = lastScreen.name ?: "End"
             if (a != b) return "$a → $b"
         }
         return lastScreen?.name ?: "Journey in ${context.appLabel}"
     }
 
-    fun goal(screens: List<Screen>, context: ScanContext): String {
-        screens.lastOrNull()?.purpose?.takeIf { it.isNotBlank() }?.let {
+    fun goal(path: List<JourneyStep>, screens: List<Screen>, context: ScanContext): String {
+        val last = path.lastOrNull()
+        val lastScreen = last?.let { screens.firstOrNull { s -> s.id == it.screen } }
+        lastScreen?.purpose?.takeIf { it.isNotBlank() }?.let {
             return it.take(160)
         }
         return "Reach the end of the flow in ${context.appLabel}."

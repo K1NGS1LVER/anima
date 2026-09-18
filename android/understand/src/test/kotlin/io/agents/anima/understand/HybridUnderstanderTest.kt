@@ -177,4 +177,23 @@ class HybridUnderstanderTest {
         assertEquals("heuristic", h.lastBackend)
         assertTrue(p.purpose.isNotBlank())
     }
+
+    @Test
+    fun `a journey through the middle of the app is named from its own path, not the app head`() {
+        // Full app: Home, Amount, Review. The journey starts at Amount (mid-app:
+        // it was reached by a previous screen, not by scanning from the top).
+        val screens = listOf(
+            Screen("scr_home", "Home", "Shows the overview.", ScreenKind.LIST, ScreenSignature("h", emptyList(), null), emptyList(), null, listOf(UiMode.LIGHT)),
+            Screen("scr_amt", "Amount", "Collects the amount.", ScreenKind.FORM, ScreenSignature("h", emptyList(), null), emptyList(), null, listOf(UiMode.LIGHT)),
+            Screen("scr_rev", "Review", "Confirms the transfer.", ScreenKind.FORM, ScreenSignature("h", emptyList(), null), emptyList(), null, listOf(UiMode.LIGHT)),
+        )
+        val path = listOf(
+            JourneyStep("scr_amt", "el_1", ElementAction.INPUT, "{amount}"),
+            JourneyStep("scr_amt", "el_2", ElementAction.TAP),
+            JourneyStep("scr_rev", "el_3", ElementAction.TAP),
+        )
+        val j = hybrid(emptyList()).describeJourney(path, screens, ctx)
+        assertEquals("Amount → Review", j.name)
+        assertEquals("Confirms the transfer.", j.goal)
+    }
 }
