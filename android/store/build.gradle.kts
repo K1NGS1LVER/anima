@@ -26,11 +26,18 @@ android {
 
     testOptions {
         unitTests.isReturnDefaultValues = true
+        unitTests.isIncludeAndroidResources = true
     }
 }
 
 dependencies {
     api(project(":core"))
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.robolectric:robolectric:4.11.1")
+    // Robolectric alone doesn't bring in ApplicationProvider -- that's a
+    // separate AndroidX Test artifact, needed for KnowledgeStoreTest's
+    // ApplicationProvider.getApplicationContext<Context>() call.
+    testImplementation("androidx.test:core:1.6.1")
     testImplementation("org.json:json:20240303")
+    testImplementation("org.jetbrains.kotlin:kotlin-test:1.9.22")
 }

@@ -201,7 +201,7 @@ Two more found on real hardware (S4), invisible to any JVM test since both need 
 - [x] `ScreenUnderstander` interface defined in `:core` and agreed
 - [x] `HeuristicUnderstander` — no model, no network, always available
 - [x] `CloudVlm` backend (Gemini)
-- [ ] `OnDeviceLlm` backend (Gemma via MediaPipe/LiteRT) ← deferred by decision; `LocalLlm` (local endpoint client) shipped instead
+- [ ] `OnDeviceLlm` backend (Gemma via MediaPipe/LiteRT) — **decided 2026-09-18: embedded rejected (weights ~1.4 GB vs 22 MB APK), download-optional accepted via `LocalLlm` + loopback LiteRT planner; works wifi-off by construction. Decision recorded in `android/understand/README.md`. Verification needs the Redmi (weights provisioned at setup), so this box stays open until then.**
 - [x] Fallback composition — model first, heuristic on any failure
 - [x] Strict JSON validation + repair; malformed output never breaks a scan — test with a deliberately broken response
 - [x] **Results cached by structural hash**; rescan reuses prior text verbatim

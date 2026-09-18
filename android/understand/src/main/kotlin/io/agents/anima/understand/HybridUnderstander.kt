@@ -47,7 +47,7 @@ class HybridUnderstander(
 
         val user = PromptBuilder.describeUser(observation, context)
         for (m in models) {
-            val raw = m.completeText(PromptBuilder.SYSTEM_DESCRIBE, user, 512) ?: continue
+            val raw = safeComplete(m, PromptBuilder.SYSTEM_DESCRIBE, user, 512) ?: continue
             val parsed = ScreenProfileJson.parse(raw, observation) ?: continue
             cache?.put(screenId, CachedResponse(m.name, raw))
             picked(m.name)
@@ -69,7 +69,7 @@ class HybridUnderstander(
 
         val user = PromptBuilder.journeyUser(path.map { it.screen to it.action.wire })
         for (m in models) {
-            val raw = m.completeText(PromptBuilder.SYSTEM_JOURNEY, user, 128) ?: continue
+            val raw = safeComplete(m, PromptBuilder.SYSTEM_JOURNEY, user, 128) ?: continue
             val parsed = ScreenProfileJson.parseJourney(raw) ?: continue
             cache?.put(id, CachedResponse(m.name, raw))
             picked(m.name)
@@ -91,7 +91,7 @@ class HybridUnderstander(
 
         val user = PromptBuilder.toneUser(copy)
         for (m in models) {
-            val raw = m.completeText(PromptBuilder.SYSTEM_TONE, user, 128) ?: continue
+            val raw = safeComplete(m, PromptBuilder.SYSTEM_TONE, user, 128) ?: continue
             val parsed = ScreenProfileJson.parseTone(raw) ?: continue
             cache?.put(key, CachedResponse(m.name, raw))
             picked(m.name)
@@ -112,4 +112,18 @@ class HybridUnderstander(
             replayable = false,
             verifiedAtScan = null,
         )
+
+    /**
+     * A throwing backend must degrade like a silent one: D5's requirement is
+     * "each backend failure lands on the next backend, never ends the scan".
+     * Models promise null-when-unavailable, but a buggy model may throw instead
+     * of returning null, and an exception here would kill the scan it exists to
+     * survive.
+     */
+    private fun safeComplete(m: UnderstandingModel, system: String, user: String, maxTokens: Int): String? =
+        try {
+            m.completeText(system, user, maxTokens)
+        } catch (e: Exception) {
+            null
+        }
 }
