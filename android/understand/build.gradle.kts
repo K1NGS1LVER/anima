@@ -31,6 +31,9 @@ android {
 
 dependencies {
     api(project(":core"))
+    // org.json ships inside the Android framework; compileOnly keeps it from
+    // being duplicated into the APK. Tests get the real JVM implementation.
+    compileOnly("org.json:json:20240303")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20240303")
 }
