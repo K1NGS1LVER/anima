@@ -124,7 +124,7 @@ These three are load-bearing. Two of them are correctness bugs in code that is a
 - [x] `./gradlew build` green after the split
 - [x] **Pack schema v1 frozen** and committed — `core/src/main/kotlin/io/agents/anima/core/Pack.kt`, matching [KNOWLEDGE_PACK.md](KNOWLEDGE_PACK.md)
 - [x] Stable-ID spec agreed (SHA-256 structural hash, dynamic content excluded) — [KNOWLEDGE_PACK.md](KNOWLEDGE_PACK.md); implementation is Jacob's
-- [x] Golden fixture packs in `fixtures/packs/` — `golden.animapack` shipped; **Jiya and Neethu are unblocked**
+- [ ] Golden fixture packs in `fixtures/packs/` — `golden.animapack` exists but is a **placeholder**: its entry is `dummy_pack.json` rather than `pack.json` so it does not load through `PackArchive.importPack()`, `screens[]` is empty, and it contains no screenshots. **Jacob: replace or delete.**
 - [x] Module interfaces agreed (signatures only) — `core/src/main/kotlin/io/agents/anima/core/Contracts.kt`
 - [x] minSdk decision recorded (26 -> 30 for `takeScreenshot()`) — `android/build.gradle.kts`, one place, not seven
 - [x] `dev` branch created and five feature branches pushed off it — `git branch -a`
