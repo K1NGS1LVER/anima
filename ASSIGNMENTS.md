@@ -19,15 +19,29 @@
 | `:store` | Jacob | `feat/knowledge-store` |
 | `:app` | Neethu | `feat/app-ui` |
 
-## Day 0 — everyone, ~3 hours, before any feature work
+## Day 0 — done, except the fixtures
 
-1. Split the Gradle modules and push the skeleton. Mechanical — the `engine` package already avoids `android.*` imports.
-2. **Freeze the pack schema together.** This is the one thing that, changed later, stalls four people at once.
-3. Jacob pushes golden fixture packs to `fixtures/packs/`.
-4. Agree interface signatures between modules. Signatures only, no bodies.
-5. Create branches, protect `main`.
+Samuel has landed it on `dev`. You do not need to repeat any of it:
 
-Decide in the same session: **minSdk 26 → 30** (needed for `AccessibilityService.takeScreenshot()`, which is far cleaner than MediaProjection and needs no per-session consent dialog).
+1. ✅ **Seven Gradle modules**, one owner each. `./gradlew projects` lists them.
+2. ✅ **Pack schema frozen in code** — `core/src/main/kotlin/io/agents/anima/core/Pack.kt`, matching [KNOWLEDGE_PACK.md](KNOWLEDGE_PACK.md).
+3. ⬜ **Golden fixture packs** — **Jacob**. Jiya and Neethu are blocked on this and nothing else, so it is the highest-priority task on the project.
+4. ✅ **Module interfaces agreed** — `core/src/main/kotlin/io/agents/anima/core/Contracts.kt`. Signatures only; implement yours in your own module.
+5. ✅ **Branches created off `dev`** and pushed. Yours already exists — check it out, don't create it.
+
+Also landed: **minSdk 26 → 30** for `AccessibilityService.takeScreenshot()`, which is far cleaner than MediaProjection and needs no per-session consent dialog. The SDK levels are declared once in `android/build.gradle.kts` and read by every module.
+
+### Start here
+
+```bash
+git fetch origin
+git checkout feat/<yours>        # it exists already
+cd android && . ./env.sh && ./gradlew test
+```
+
+If `./gradlew test` is not green before you have written a line, something is wrong with your setup, not with your code. Fix that first.
+
+Read `<your-module>/README.md` — each one names its owner, its files and its contract.
 
 ## Branches
 
@@ -41,9 +55,11 @@ main                  release-ready, protected. Samuel merges.
     └── feat/app-ui            Neethu
 ```
 
+All five already exist on the remote:
+
 ```bash
-git checkout dev && git pull
-git checkout -b feat/<yours>
+git fetch origin
+git checkout feat/<yours>
 # daily:
 git fetch origin && git rebase origin/dev
 ```
@@ -58,13 +74,14 @@ Every PR keeps CI green. A `:core` change needs Samuel **and** Jacob to approve.
 
 You own the part that makes it autonomous, and you integrate at the end.
 
-### Capture gaps to close first
+### Capture gaps — closed
 
-The current code cannot do several things the crawler needs:
+All four landed in `:capture`:
 
-- **No screenshot capability at all** in Kotlin. Nothing to reuse. `AccessibilityService.takeScreenshot()` (API 30+).
-- **No scroll** in the `AgentDevice` interface. `dispatchSwipe` exists on the service but nothing calls it, and `isScrollable` is read to decide whether a node is interesting but **never stored** on `AccessibilityNode` — add the field before you can decide "this screen needs a scroll pass".
-- **Only `rootInActiveWindow` is ever read.** `getWindows()` is never called, though `flagRetrieveInteractiveWindows` is already set in `accessibility_service_config.xml`. Dialogs and system overlays need it.
+- **Screenshots** — `AnimaAccessibilityService.takeScreenshotSync()` (API 30+), with `capture/Screenshotter.kt` downscaling to the 720 px / 60 KB budget in the contract.
+- **Scroll** — `ExplorationDevice.scroll()`. A successful gesture does not mean content moved; the caller decides that by comparing observations, because an exhausted list swipes perfectly well and changes nothing.
+- **Multi-window** — `captureAllWindowNodes()` via `getWindows()`, ordered by layer then window id.
+- **`isScrollable`** — now stored on `AccessibilityNode` and `PrunedNode`, and scrollable containers survive `UIFormer` pruning.
 
 ### The exploration loop
 
@@ -92,9 +109,13 @@ Seeded, ordered traversal: the same app scanned twice visits screens in the same
 
 `PopupInterceptor` (dismisses consent dialogs mid-crawl), `BiometricGuard` (a crawl boundary — stop, don't solve), `UIFormer` (compaction), and the guard-calling skeleton at `AnimaRuntime.kt:66-83`.
 
-### Done when
+### Built
 
-The crawler scans a real app with no human input, produces ≥30 screens on the fintech target, never taps a destructive control, and two consecutive scans visit screens in the same order.
+`:explore` — `Frontier`, `ExplorationPolicy`, `SafetyEnvelope`, `ScanBudget`, `Explorer`. 33 tests, including two scans of a fake app producing identical tap order, visit order, screen ids and edges.
+
+### Still open — all of it needs the phone
+
+The crawler scans a real app with no human input, ≥30 screens on the fintech target, zero destructive controls across ten consecutive scans, and two consecutive scans visiting screens in the same order **on hardware**, where timing, animations and OEM behaviour are real. Also outstanding: the drawer-opening edge swipe, and wiring coverage into `scan.coverage` once Jacob's assembler exists.
 
 ---
 
@@ -106,13 +127,19 @@ You make it work on *any* app instead of any *tested* app. Every keyword rule cu
 
 ### The interface
 
+Now frozen in `core/Contracts.kt` — implement it, don't redesign it:
+
 ```kotlin
 interface ScreenUnderstander {
-    fun describe(compactDom: String, screenshot: ByteArray?, context: ScanContext): ScreenProfile
+    fun describe(observation: ScreenObservation, screenId: String, context: ScanContext): ScreenProfile
+    fun describeJourney(path: List<JourneyStep>, screens: List<Screen>, context: ScanContext): Journey
+    fun toneOfVoice(copy: List<String>, context: ScanContext): ToneOfVoice
 }
 ```
 
-`ScreenProfile` fills the LLM-authored fields of the pack: screen `name`, `purpose`, `kind`, per-element `semantic`, and `input.type` for form fields — **including when the app gives no roles or labels**, which is the explicit hard case in the brief.
+`ScreenObservation` carries the pruned tree *and* the screenshot from the same capture, so you get both without asking the crawler for anything. `screenId` is passed in rather than computed by you: it is the cache key, and caching by it is what actually makes the pack stable.
+
+`ScreenProfile` fills the LLM-authored fields of the pack: screen `name`, `purpose`, `kind`, per-element `semantic`, and `input.type` for form fields — **including when the app gives no roles or labels**, which is the explicit hard case in the brief. Its maps are keyed by `PrunedNode.id`, so the crawler attaches your output without re-matching anything.
 
 ### Three backends, one interface
 
@@ -143,6 +170,8 @@ A screen with no labels and no roles still gets a correct purpose and correctly 
 **Branch `feat/knowledge-store` · modules `:core` (schema), `:store`**
 
 You own the spine. The two requirements most likely to be judged — stability and compactness — are yours.
+
+Your interfaces are frozen in `core/Contracts.kt`: `ScreenIdentifier` (screen and element ids, plus the signature block) and `PackRepository` (save, load, canonical JSON, diff). The pack types themselves are in `core/Pack.kt`. Both files are yours to change, with Samuel's approval, since four people build against them.
 
 ### Ship first, on Day 0
 
@@ -178,7 +207,7 @@ Two consecutive scans produce byte-identical output, a 40-screen pack fits the b
 
 **Branch `feat/design-extract` · module `:design`**
 
-Self-contained and testable from static fixtures — you can build and verify all of it without the crawler ever running. Input: a screenshot plus the pruned node list. Output: the `design_system` section of the pack.
+Self-contained and testable from static fixtures — you can build and verify all of it without the crawler ever running. Implement `DesignExtractor` from `core/Contracts.kt`: in, a list of `ScreenObservation` (each carrying a screenshot and its pruned node list); out, the `DesignSystem` section of the pack.
 
 ### What to extract
 
