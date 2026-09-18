@@ -17,7 +17,7 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Anima">
 
-        <!-- Launcher Activity: judge-facing onboarding, permission gate, goal runner, 3-act demo -->
+        <!-- Launcher Activity: onboarding, app selection, scan control and pack viewer. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -28,22 +28,14 @@
             </intent-filter>
         </activity>
 
-        <!-- External Automation Receiver: Tasker & MacroDroid Intent API -->
-        <receiver
-            android:name=".TaskerReceiver"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="io.agents.anima.RUN_TASK" />
-                <category android:name="android.intent.category.DEFAULT" />
-            </intent-filter>
-        </receiver>
-
         <!--
              S4 hardware bring-up harness, not a product feature. See the
              class doc on DebugScanReceiver. Runs the real Explorer,
              ScanOrchestrator, KnowledgeStore and PackArchive pipeline from an
-             adb broadcast, ahead of N1-N4 landing a real UI trigger. Remove
-             once that composition root exists.
+             adb broadcast. MainActivity still drives its scan screen off a
+             scripted FakeScanController (see its own note about G6), so this
+             stays the only way to produce a real pack until N4 swaps to the
+             real ScanController. Remove once it does.
         -->
         <receiver
             android:name=".DebugScanReceiver"
@@ -53,7 +45,6 @@
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </receiver>
-
     </application>
 
 </manifest>
