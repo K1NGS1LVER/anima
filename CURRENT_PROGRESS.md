@@ -21,7 +21,13 @@ Read in this order: [PLAN.md](PLAN.md) → [KNOWLEDGE_PACK.md](KNOWLEDGE_PACK.md
 
 **Jiya and Neethu are unblocked.** `fixtures/packs/golden.animapack` exists, so both of you can build and test against real pack data without the crawler running at all. Your branches already sit on the integrated `dev`; just check out and start.
 
-**Next for Samuel: wire the scan end to end** — `Explorer` → `ScreenUnderstander` → `PackRepository` — and then run it on the Redmi. Every remaining hardware claim in `CHECKLIST.md` depends on that.
+**Everyone: your next task is in [EXECUTION_PLAN.md](EXECUTION_PLAN.md)**, with the dependency gate it waits on and the command that proves it done. That file is the runbook from here to demo day; this one stays the log.
+
+**Three blockers found by reading the merged code**, two of them correctness bugs in modules whose own tests are green:
+
+1. **Nothing is wired end to end.** No orchestrator turns a `ScanOutcome` into a `KnowledgePack`. No real pack has ever been produced. *Samuel, critical path.*
+2. **`KnowledgeStore.save()` is an empty body**, `load()`/`latest()` return `null`. Nothing persists, so nothing can be reopened or diffed and the saved-pack demo fallback does not exist. *Jacob, first.*
+3. **`StableIdEngine.signature()` does not de-duplicate resource-ids**, so a list screen with five rows and the same screen with six get different ids. It passes a hand-built unit test and fails the first real rescan — precisely the case the contract warns about. *Jacob, before anything else.*
 
 **Samuel: set branch protection on `main` in GitHub** — a repo setting, not a commit, so it could not be done from here.
 
@@ -56,6 +62,18 @@ Read in this order: [PLAN.md](PLAN.md) → [KNOWLEDGE_PACK.md](KNOWLEDGE_PACK.md
 One-time setup on a fresh machine is documented at the top of `android/env.sh`.
 
 ## Log
+
+### 2026-09-18 — Samuel: execution plan for P1 → demo day (`EXECUTION_PLAN.md`)
+
+Wrote the runbook the team and their agents work from between now and T. Per-person task order, dependency gates with real check commands, and the freeze → regression → rehearsal → demo phases with exit criteria. Cross-linked from every other doc so there is one place to look.
+
+Writing it meant reading the merged code rather than the commit messages, which turned up three things that were not true:
+
+- **No end-to-end path exists.** Three modules each produce their half of a pack and nothing joins them. That is now the top of my own list, ahead of anything else, because four people's work gets more realistic the moment a real scan exists.
+- **`KnowledgeStore` persistence is a stub** — `save()` is an empty body with a comment describing what it would do. Its module's tests are green, which is what makes it worth writing down loudly.
+- **`StableIdEngine` folds duplicate resource-ids into the fingerprint.** Same screen, one more list row, different screen id. It will pass every synthetic test we have and fail the first real rescan, which is the headline acceptance criterion.
+
+Also decided the cut list now, in the cold, rather than at 2am at T-1 — and what is never cut: the safety envelope, the stability test, the rebuild test, journey replay, and the rehearsal.
 
 ### 2026-09-18 — Samuel: integration pass, three modules merged into `dev` (`32c664c`)
 

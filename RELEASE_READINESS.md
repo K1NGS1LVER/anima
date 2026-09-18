@@ -2,7 +2,9 @@
 
 > The rest of the plan covers *building* the product. This covers *shipping* it and *showing* it — the part teams discover too late.
 >
-> Plan: [PLAN.md](PLAN.md) · Briefs: [ASSIGNMENTS.md](ASSIGNMENTS.md) · Status: [CHECKLIST.md](CHECKLIST.md)
+> Plan: [PLAN.md](PLAN.md) · **Runbook: [EXECUTION_PLAN.md](EXECUTION_PLAN.md)** · Briefs: [ASSIGNMENTS.md](ASSIGNMENTS.md) · Status: [CHECKLIST.md](CHECKLIST.md)
+>
+> The T-3 → T schedule below is expanded into per-person tasks and exit gates in [EXECUTION_PLAN.md](EXECUTION_PLAN.md) §P2–P5.
 
 ## What "display-ready" means here
 

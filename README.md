@@ -78,8 +78,10 @@ The seven modules exist and build; the pack schema and the module seams are froz
 
 ```bash
 git fetch origin && git checkout feat/<yours>
-cd android && . ./env.sh && ./gradlew test      # 110 JVM tests, no device needed
+cd android && . ./env.sh && ./gradlew test      # 149 JVM tests, no device needed
 ```
+
+**Working on this? Read [EXECUTION_PLAN.md](EXECUTION_PLAN.md).** It is the runbook from here to demo day: what each person does next, in what order, which dependency gates block whom and how to check them, and the freeze → regression → rehearsal → demo phases with their exit criteria. `ASSIGNMENTS.md` says what you own; `EXECUTION_PLAN.md` says what to do this morning.
 
 ## 🚢 The bar: display-ready
 

@@ -2,7 +2,9 @@
 
 > Five people, five modules, five branches. Read your section, read [KNOWLEDGE_PACK.md](KNOWLEDGE_PACK.md), and you have everything you need. After Day 0, nobody blocks anybody.
 >
-> Plan: [PLAN.md](PLAN.md) · Contract: [KNOWLEDGE_PACK.md](KNOWLEDGE_PACK.md) · Status: [CHECKLIST.md](CHECKLIST.md) · Shipping & demo: [RELEASE_READINESS.md](RELEASE_READINESS.md)
+> Plan: [PLAN.md](PLAN.md) · **Runbook: [EXECUTION_PLAN.md](EXECUTION_PLAN.md)** · Contract: [KNOWLEDGE_PACK.md](KNOWLEDGE_PACK.md) · Status: [CHECKLIST.md](CHECKLIST.md) · Shipping & demo: [RELEASE_READINESS.md](RELEASE_READINESS.md)
+>
+> **This file says what you own. [EXECUTION_PLAN.md](EXECUTION_PLAN.md) says what to do next, in what order, and what to wait for.** Point your agent at both.
 >
 > **Everyone**: the last three days (freeze → regression pass → rehearsal) are in [RELEASE_READINESS.md](RELEASE_READINESS.md), and your module's regression pass is your own job.
 

@@ -2,7 +2,7 @@
 
 > A box gets ticked **only** when its verification command passes on this machine. No box is ticked on the strength of "the code looks right" — that is exactly how Phases 5–6 came to be marked complete for a module that had never been compiled.
 >
-> Context: [PLAN.md](PLAN.md) · Running log: [CURRENT_PROGRESS.md](CURRENT_PROGRESS.md)
+> Context: [PLAN.md](PLAN.md) · **Runbook: [EXECUTION_PLAN.md](EXECUTION_PLAN.md)** · Running log: [CURRENT_PROGRESS.md](CURRENT_PROGRESS.md)
 
 **Phase 9 (shipped)** is below as history. The **pivot workstreams** — what everyone is actually building now — are at the end.
 
@@ -108,6 +108,15 @@ Run `source android/env.sh` before any Gradle or ADB command below.
 > **Phase 10 (multi-step planning) is superseded.** The project pivoted to autonomous app exploration — see [PLAN.md](PLAN.md). The multi-step cold loop survives inside the exploration engine below; the rest of that plan is retired.
 
 ---
+
+# Blockers — found by inspecting merged code, not by reading commit messages
+
+These three are load-bearing. Two of them are correctness bugs in code that is already on `dev` and already passing its own tests. Full context and the order to fix them in: [EXECUTION_PLAN.md](EXECUTION_PLAN.md).
+
+- [ ] **Nothing is wired end to end** — `Explorer` makes a `ScanOutcome`, `HybridUnderstander` makes a `ScreenProfile`, `KnowledgeStore` takes a `KnowledgePack`, and nothing turns the first into the third. No code path has ever produced a real pack. **Samuel, critical path.**
+- [ ] **`KnowledgeStore` does not persist** — `save()` is an empty body, `load()` and `latest()` return `null`. No pack can be reopened, no two scans diffed, and the demo's saved-pack fallback does not exist. **Jacob, first.**
+- [ ] **`StableIdEngine.signature()` does not de-duplicate resource-ids** — a list screen with five rows and the same screen with six hash differently, so one screen gets two ids across scans. Passes a hand-built unit test, fails the first real rescan. **Jacob, before anything else in `:store`.**
+
 
 # Day 0 — joint, blocking ✅ (except fixtures)
 
@@ -327,3 +336,45 @@ Full detail and the T-3/T-2/T-1 schedule: [RELEASE_READINESS.md](RELEASE_READINE
 - [ ] Rebuild comparison and journey replay reached before time runs out
 - [ ] `scan twice && diff` demonstrated as the stability proof
 - [ ] Answers ready for Play Store policy, third-party ToS, and known gaps
+
+---
+
+# P2–P5 — freeze, regression, rehearsal, demo
+
+Expanded, with owners and exit gates, in [EXECUTION_PLAN.md](EXECUTION_PLAN.md). Tick here as each phase closes.
+
+## P2 — T-3, feature freeze
+
+- [ ] All five branches rebased on `dev` and pushed
+- [ ] Samuel merged all five in dependency order
+- [ ] `./gradlew test` green on the **merged** result
+- [ ] `./gradlew :app:assembleDebug` green on the merged result
+- [ ] **End-to-end scan on the primary device, from the merged build** — the exit gate
+- [ ] Integration report read by everyone; breakages owned same day
+
+## P3 — T-2, regression pass (against `dev`, not your branch)
+
+- [ ] Samuel — 10 consecutive scans, zero destructive taps, kill switch live, two scans diff empty
+- [ ] Jacob — save/load/canonical round trip, size budget on a real pack, diff across versions, `.animapack` imports on a second device
+- [ ] Daniel — wifi genuinely off end to end, malformed output degrades, rescan makes zero model calls, no-label screen still typed
+- [ ] Jiya — tokens match by eye, repeat runs identical, two rebuilt screens recognisable
+- [ ] Neethu — fresh install on a wiped device, every empty/loading/error state, dark mode, TalkBack sweep
+- [ ] Neethu — **release build installed and exercised** (R8 strips what debug keeps)
+- [ ] Neethu — backup device set up identically and verified end to end
+
+## P4 — T-1, rehearsal
+
+- [ ] Rehearsal 1, with network, timed
+- [ ] Rehearsal 2, **wifi actually off**, timed
+- [ ] Both devices configured identically (developer options, permissions, battery optimisation off, timeout raised, DND on, target apps installed and logged in)
+- [ ] Saved packs for 2–3 apps on both devices — Jacob
+- [ ] `main` tagged, release APK built and installed from the release build — Neethu
+- [ ] Speaking roles assigned
+- [ ] Presentation flow walked end to end against the clock, reaching rebuild + replay + diff
+- [ ] Answers written down: Play policy, per-app ToS, what the pack does not cover
+
+## P5 — T, demo day
+
+- [ ] No code changes
+- [ ] Both phones charged, rehearsed build, saved packs present
+- [ ] Log export ready to show if something breaks

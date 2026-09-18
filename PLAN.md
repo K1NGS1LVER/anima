@@ -4,6 +4,8 @@
 >
 > Contract: [KNOWLEDGE_PACK.md](KNOWLEDGE_PACK.md) · Who does what: [ASSIGNMENTS.md](ASSIGNMENTS.md) · Status: [CHECKLIST.md](CHECKLIST.md) · Shipping & demo: [RELEASE_READINESS.md](RELEASE_READINESS.md) · Architecture SSOT: [dev_plan.md](dev_plan.md) §15
 
+> **This file is the why and the what. The phase-by-phase runbook — who does what, in what order, and which gates block whom — is [EXECUTION_PLAN.md](EXECUTION_PLAN.md).**
+
 ## The problem
 
 An in-app agent can only help inside a host app if it knows that app as well as someone who built it — every screen, what each does, how they connect, how it looks and speaks. Today that knowledge is recorded by hand: slow, incomplete, and stale the moment the app updates.
