@@ -30,6 +30,14 @@ class AnimaAccessibilityService : AccessibilityService() {
             private set
         val isExecuting = AtomicBoolean(false)
         val shouldHalt = AtomicBoolean(false)
+
+        /** Android keycodes the engine may dispatch (see [dispatchKey]). */
+        const val KEYCODE_HOME = 3
+        const val KEYCODE_BACK = 4
+        const val KEYCODE_APP_SWITCH = 187
+
+        /** Depth guard for [rawWindowDump] so a pathological tree can never hang a run. */
+        private const val MAX_DUMP_DEPTH = 40
     }
 
     override fun onServiceConnected() {
@@ -110,11 +118,22 @@ class AnimaAccessibilityService : AccessibilityService() {
         }
     }
 
+    /** The package currently in the foreground, or null if no window is readable. */
+    fun foregroundPackage(): String? = rootInActiveWindow?.packageName?.toString()
+
+    /** True when the screen the agent would act on is Anima's own UI. */
+    fun isOwnUiInForeground(): Boolean = foregroundPackage() == packageName
+
     /**
      * Traverses the active window and produces a flattened list of UI nodes.
+     *
+     * Anima's own windows are never included. Without this the agent happily
+     * reads the goal out of its own input field and taps that -- the goal text
+     * is, after all, the single best keyword match for the goal on screen.
      */
     fun captureCurrentWindowNodes(): List<AccessibilityNode> {
         val root = rootInActiveWindow ?: return emptyList()
+        if (root.packageName?.toString() == packageName) return emptyList()
         val nodes = mutableListOf<AccessibilityNode>()
         traverseNode(root, nodes)
         return nodes
@@ -125,19 +144,39 @@ class AnimaAccessibilityService : AccessibilityService() {
         node.getBoundsInScreen(bounds)
 
         // Only keep interactive or semantically meaningful nodes (UIFormer logic)
+        // isCheckable matters: a Wi-Fi master switch often has no text, no
+        // content-desc and is not itself clickable (the row around it is), so
+        // without this the agent cannot see toggles at all.
         val isMeaningful = node.isClickable || node.isScrollable || node.isEditable ||
+                node.isCheckable ||
                 !node.text.isNullOrBlank() || !node.contentDescription.isNullOrBlank()
 
         if (isMeaningful && bounds.width() > 0 && bounds.height() > 0) {
+            // Label inheritance: a tappable row often carries no label of its
+            // own -- the text lives on an inert child. Without a label such a
+            // row is identified only by class and position, which do not
+            // distinguish a Wi-Fi row from a Bluetooth row at the same spot on
+            // another screen. Give the container the label it visually has.
+            val ownText = node.text?.toString()
+            val inheritedText = if (
+                ownText.isNullOrBlank() &&
+                node.contentDescription.isNullOrBlank() &&
+                node.isClickable
+            ) {
+                descendantLabel(node)
+            } else {
+                ownText
+            }
             list.add(
                 AccessibilityNode(
                     resourceId = node.viewIdResourceName,
-                    text = node.text?.toString(),
+                    text = inheritedText,
                     contentDescription = node.contentDescription?.toString(),
                     className = node.className?.toString() ?: "android.view.View",
                     isClickable = node.isClickable,
                     isEditable = node.isEditable,
-                    bounds = bounds
+                    bounds = bounds,
+                    isChecked = node.isChecked
                 )
             )
         }
@@ -145,6 +184,30 @@ class AnimaAccessibilityService : AccessibilityService() {
         for (i in 0 until node.childCount) {
             val child = node.getChild(i) ?: continue
             traverseNode(child, list)
+        }
+    }
+
+    /**
+     * The single label a container visually presents, if it has one.
+     *
+     * Bails out when the subtree holds several labels: a whole-screen container
+     * would otherwise inherit whatever text happened to come first, which is
+     * worse than having no label at all.
+     */
+    private fun descendantLabel(node: AccessibilityNodeInfo, maxLabels: Int = 3): String? {
+        val labels = mutableListOf<String>()
+        collectLabels(node, labels, maxLabels)
+        return if (labels.size in 1..maxLabels) labels.first() else null
+    }
+
+    private fun collectLabels(node: AccessibilityNodeInfo, out: MutableList<String>, limit: Int) {
+        for (i in 0 until node.childCount) {
+            if (out.size > limit) return
+            val child = node.getChild(i) ?: continue
+            val label = child.text?.toString()?.trim().takeUnless { it.isNullOrEmpty() }
+                ?: child.contentDescription?.toString()?.trim().takeUnless { it.isNullOrEmpty() }
+            if (label != null) out.add(label)
+            collectLabels(child, out, limit)
         }
     }
 
@@ -234,6 +297,56 @@ class AnimaAccessibilityService : AccessibilityService() {
     }
 
     /**
+     * Engine support: the physical display size in pixels, used to normalize node geometry into
+     * resolution-invariant [0,1] coordinates so compiled skills survive a change of device.
+     */
+    fun displaySize(): Pair<Int, Int> {
+        val metrics = resources.displayMetrics
+        val width = if (metrics.widthPixels > 0) metrics.widthPixels else 1080
+        val height = if (metrics.heightPixels > 0) metrics.heightPixels else 2400
+        return Pair(width, height)
+    }
+
+    /**
+     * Engine support: a flattened text dump of the whole active window (class names, view ids,
+     * text and content descriptions). This is what the engine's BiometricGuard scans, so it must
+     * include *every* node, not just the semantically meaningful ones.
+     */
+    fun rawWindowDump(): String {
+        val root = rootInActiveWindow ?: return ""
+        val sb = StringBuilder()
+        root.packageName?.let { sb.append(it).append('\n') }
+        appendNodeDump(root, sb, 0)
+        return sb.toString()
+    }
+
+    private fun appendNodeDump(node: AccessibilityNodeInfo, sb: StringBuilder, depth: Int) {
+        if (depth > MAX_DUMP_DEPTH) return
+        sb.append(node.className ?: "").append(' ')
+            .append(node.viewIdResourceName ?: "").append(' ')
+            .append(node.text ?: "").append(' ')
+            .append(node.contentDescription ?: "").append('\n')
+        for (i in 0 until node.childCount) {
+            val child = node.getChild(i) ?: continue
+            appendNodeDump(child, sb, depth + 1)
+        }
+    }
+
+    /**
+     * Engine support: maps an Android keycode onto the global actions an accessibility service is
+     * allowed to perform. Anything unrecognized falls back to BACK, which is what the replay loop
+     * uses to dismiss the soft keyboard after typing.
+     */
+    fun dispatchKey(keycode: Int): Boolean {
+        if (shouldHalt.get()) return false
+        return when (keycode) {
+            KEYCODE_HOME -> performGlobalAction(AccessibilityService.GLOBAL_ACTION_HOME)
+            KEYCODE_APP_SWITCH -> performGlobalAction(AccessibilityService.GLOBAL_ACTION_RECENTS)
+            else -> performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK)
+        }
+    }
+
+    /**
      * Dismisses transient permission dialogs automatically (allow or deny).
      */
     private fun handlePermissionDialog(event: AccessibilityEvent) {
@@ -261,5 +374,6 @@ data class AccessibilityNode(
     val className: String,
     val isClickable: Boolean,
     val isEditable: Boolean,
-    val bounds: Rect
+    val bounds: Rect,
+    val isChecked: Boolean = false
 )

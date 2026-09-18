@@ -195,7 +195,7 @@ class UIFormer:
             if rb[2] > 0 and rb[3] > 0:
                 sw, sh = rb[2], rb[3]
 
-        nodes: List[PrunedNode] = []
+        kept: List[Tuple[PrunedNode, ET.Element]] = []
         counter = 1
 
         def walk(node: ET.Element):
@@ -221,7 +221,7 @@ class UIFormer:
                         round(bounds[3] / sh, 4)
                     ]
                     rel_c = [round(center[0] / sw, 4), round(center[1] / sh, 4)]
-                    nodes.append(PrunedNode(
+                    kept.append((PrunedNode(
                         id=counter,
                         class_name=cls.split(".")[-1],
                         resource_id=res_id,
@@ -233,14 +233,45 @@ class UIFormer:
                         center=center,
                         rel_bounds=rel_b,
                         rel_center=rel_c
-                    ))
+                    ), node))
                     counter += 1
 
             for child in node:
                 walk(child)
 
         walk(root)
-        return nodes
+
+        # Label inheritance: a tappable row often carries no label of its own --
+        # the text lives on an inert child. Without a label such a row is
+        # identified only by class and position, which are not distinguishing:
+        # a "Wi-Fi" row and a "Bluetooth" row on different screens look
+        # identical to the matcher. Give the container the label it visually has.
+        for pruned, element in kept:
+            if pruned.clickable and not pruned.text and not pruned.content_desc:
+                label = self._descendant_label(element)
+                if label:
+                    pruned.text = label
+
+        return [pruned for pruned, _ in kept]
+
+    @staticmethod
+    def _descendant_label(element: ET.Element, max_labels: int = 3) -> Optional[str]:
+        """The single label a container visually presents, if it has one.
+
+        Bails out when the subtree holds several labels: a whole-screen
+        container would otherwise inherit whatever text happened to be first,
+        which is worse than having no label at all.
+        """
+        labels: List[str] = []
+        for child in element.iter():
+            if child is element:
+                continue
+            label = (child.attrib.get("text") or "").strip() or (child.attrib.get("content-desc") or "").strip()
+            if label:
+                labels.append(label)
+                if len(labels) > max_labels:
+                    return None
+        return labels[0] if labels else None
 
 # ---------------------------------------------------------------------------
 # 3. Skill Schema & Weighted Multi-Attribute Matcher (SkillDroid)
@@ -286,6 +317,12 @@ class Matcher:
     """Computes weighted multi-attribute score normalized by active locator attributes."""
     WEIGHTS = {"res": 0.35, "desc": 0.25, "text": 0.20, "cls": 0.10, "bounds": 0.10}
 
+    # A label the locator knows about, contradicted by the label the candidate
+    # actually carries, means "different element" -- not "weak match". Without
+    # this veto, a "Wi-Fi" row locator scored 1.0 against the identically shaped
+    # "Bluetooth" row on another screen and the agent tapped it.
+    CONTRADICTION_RATIO = 0.40
+
     @classmethod
     def score(cls, loc: Locator, node: PrunedNode) -> float:
         score = 0.0
@@ -299,12 +336,18 @@ class Matcher:
         if loc.content_desc:
             active_weight += cls.WEIGHTS["desc"]
             if node.content_desc:
-                score += SequenceMatcher(None, loc.content_desc.lower(), node.content_desc.lower()).ratio() * cls.WEIGHTS["desc"]
+                ratio = SequenceMatcher(None, loc.content_desc.lower(), node.content_desc.lower()).ratio()
+                if ratio < cls.CONTRADICTION_RATIO:
+                    return 0.0  # different element, not a weak match
+                score += ratio * cls.WEIGHTS["desc"]
 
         if loc.text:
             active_weight += cls.WEIGHTS["text"]
             if node.text:
-                score += SequenceMatcher(None, loc.text.lower(), node.text.lower()).ratio() * cls.WEIGHTS["text"]
+                ratio = SequenceMatcher(None, loc.text.lower(), node.text.lower()).ratio()
+                if ratio < cls.CONTRADICTION_RATIO:
+                    return 0.0
+                score += ratio * cls.WEIGHTS["text"]
 
         if loc.class_name:
             active_weight += cls.WEIGHTS["cls"]
@@ -558,25 +601,107 @@ class GeminiPlanner(BasePlanner):
 
 class HeuristicPlanner(BasePlanner):
     """Hermetic keyword/semantic matcher on Agent-DOM when offline or without API key."""
+    _NON_ALNUM = re.compile(r"[^a-z0-9]+")
+
+    @classmethod
+    def _flatten(cls, text: Optional[str]) -> str:
+        """Strip punctuation so goal words survive real-world label typography.
+
+        Android labels are written for humans: "Wi-Fi", "Do not disturb",
+        "Bluetooth & devices". A plain substring test fails every one of those
+        against a goal like "toggle wifi".
+        """
+        return cls._NON_ALNUM.sub("", (text or "").lower())
+
+    # Widget classes that carry an on/off state. MIUI renders the Wi-Fi master
+    # switch as a CheckBox, AOSP as a Switch, others as a SlidingButton.
+    _TOGGLE_CLASSES = ("switch", "togglebutton", "checkbox", "compoundbutton", "slidingbutton")
+    _TOGGLE_VERBS = ("toggle", "turn on", "turn off", "turn ", "enable", "disable", "switch")
+
+    @classmethod
+    def _wants_toggle(cls, goal: str) -> bool:
+        g = goal.lower()
+        return any(v in g for v in cls._TOGGLE_VERBS)
+
+    @classmethod
+    def _encloses_toggle(cls, container: PrunedNode, nodes: List[PrunedNode]) -> bool:
+        x1, y1, x2, y2 = container.bounds
+        for n in nodes:
+            if n is container:
+                continue
+            if not any(t in n.class_name.lower() for t in cls._TOGGLE_CLASSES):
+                continue
+            cx, cy = n.center
+            if x1 <= cx <= x2 and y1 <= cy <= y2:
+                return True
+        return False
+
+    @staticmethod
+    def _actionable(node: PrunedNode, nodes: List[PrunedNode]) -> PrunedNode:
+        """Redirect a matched label to the row that actually handles the tap.
+
+        The node carrying the text is usually an inert TextView nested inside a
+        clickable container, so tapping the label itself does nothing. Falls back
+        to the smallest clickable node whose bounds contain this one -- the
+        closest actionable ancestor, without needing parent pointers.
+        """
+        if node.clickable:
+            return node
+        cx, cy = node.center
+        best, best_area = None, None
+        for n in nodes:
+            if not n.clickable:
+                continue
+            x1, y1, x2, y2 = n.bounds
+            if x1 <= cx <= x2 and y1 <= cy <= y2:
+                area = (x2 - x1) * (y2 - y1)
+                if best_area is None or area < best_area:
+                    best, best_area = n, area
+        return best or node
+
     def plan_step(self, goal: str, dom_json: str, nodes: List[PrunedNode]) -> Optional[Tuple[str, PrunedNode, Optional[str]]]:
-        tokens = [t.lower() for t in re.findall(r"\w+", goal)]
+        # Tokens of 1-2 characters ("a", "my", "to") match almost any label --
+        # "a" alone matches "Storage" -- so they only add noise to the score.
+        tokens = [t.lower() for t in re.findall(r"\w+", goal) if len(t) > 2]
         best_node = None
         best_score = 0
+        best_area = None
+        wants_toggle = self._wants_toggle(goal)
 
         for n in nodes:
             score = 0
             candidate_text = f"{n.text or ''} {n.content_desc or ''} {n.resource_id or ''}".lower()
+            candidate_flat = self._flatten(candidate_text)
+            labels = {self._flatten(n.text), self._flatten(n.content_desc)}
             for t in tokens:
-                if t in candidate_text:
+                t_flat = self._flatten(t)
+                if t in candidate_text or t_flat in candidate_flat:
                     score += 2
+                # A label that *is* the goal word beats one that merely mentions
+                # it. On a real Wi-Fi settings screen the toggle is labelled
+                # "Wi-Fi", while every network row carries a content-desc like
+                # "MyNetwork,Connected,Wi-Fi signal full." -- without this the
+                # agent taps a network instead of the switch.
+                if t_flat and t_flat in labels:
+                    score += 3
             if n.clickable and score > 0:
                 score += 1
-            if score > best_score:
+            # For a toggle goal, prefer the label sitting in a row that actually
+            # owns a switch. A settings screen titled "Wi-Fi" carries the word in
+            # its action bar too, and tapping that does nothing.
+            if score > 0 and wants_toggle and self._encloses_toggle(self._actionable(n, nodes), nodes):
+                score += 3
+            # On a tie, the tighter element wins: with label inheritance a
+            # whole-screen container can carry the same label as the row inside
+            # it, and the row is what a human would tap.
+            area = (n.bounds[2] - n.bounds[0]) * (n.bounds[3] - n.bounds[1])
+            if score > best_score or (score == best_score and score > 0 and best_area is not None and area < best_area):
                 best_score = score
                 best_node = n
+                best_area = area
 
         if best_node:
-            return "tap", best_node, None
+            return "tap", self._actionable(best_node, nodes), None
         return None
 
     def plan_visual(self, goal: str, screenshot_bytes: bytes) -> Optional[Tuple[str, Tuple[int, int], Optional[str]]]:
@@ -682,11 +807,14 @@ class PopupInterceptor:
 
 class BiometricGuard:
     """Detects biometric/session-expiry prompts mid-task and halts for HITL authentication."""
+    # Markers are matched against a lower-cased dump, so they must be lower-case
+    # themselves -- mixed-case entries here can never match.
     MARKERS = (
         "com.android.systemui:id/biometric_prompt",
         "biometric_prompt",
-        "android:id/passwordEntry",
-        "Confirmed Password",
+        "android:id/passwordentry",
+        "confirm your pattern",
+        "confirmed password",
     )
 
     @classmethod
@@ -953,6 +1081,10 @@ class ExecutionResult:
     llm_calls: int
     latency_seconds: float
     message: str
+    # A3-style essential-state milestones: how many executed steps produced
+    # observable functional progress. Advisory -- a step that fails the check is
+    # still executed, because a false negative must never abort a live run.
+    steps_verified: int = 0
 
 class AnimaRuntime:
     """The central orchestrator: Intent -> Warm Replay OR Cold Planning -> Auto-Compilation."""
@@ -976,6 +1108,7 @@ class AnimaRuntime:
         # -------------------------------------------------------------------
         if skill:
             executed = 0
+            verified = 0
             drift_detected = False
             for idx, step in enumerate(skill.steps):
                 xml = device.dump_xml()
@@ -1030,19 +1163,33 @@ class AnimaRuntime:
                     device.key(int(step.value or 4))
                 executed += 1
 
+                # A3 essential-state verification: re-read the screen and check the
+                # action produced functional progress (toggle flipped, new text, or a
+                # hierarchy change) rather than trusting the dispatch return value.
+                post_nodes = self.pruner.prune(device.dump_xml(), screen_size=screen_size)
+                if EssentialStateVerifier.verify_progress(nodes, post_nodes, target):
+                    verified += 1
+
                 # Record state transition in Page Transition Graph
                 target_desc = str(target.text or target.content_desc or target.resource_id or "element")
-                self.ptg.record_transition(nodes, nodes, step.action, target_desc, time.time() - start_time, 1 if drift_detected else 0)
+                self.ptg.record_transition(nodes, post_nodes, step.action, target_desc, time.time() - start_time, 1 if drift_detected else 0)
 
             skill.success_count += 1
             self.db.save(skill)
+            if drift_detected:
+                msg = "Self-healed drifted locator and succeeded"
+            else:
+                msg = "Speculative replay succeeded with 0 LLM calls"
+            if verified < executed:
+                msg += f" ({verified}/{executed} steps verified by essential-state milestones)"
             return ExecutionResult(
                 mode="WARM_REPLAY",
                 success=True,
                 steps_executed=executed,
                 llm_calls=1 if drift_detected else 0,
                 latency_seconds=time.time() - start_time,
-                message="Speculative replay succeeded with 0 LLM calls" if not drift_detected else "Self-healed drifted locator and succeeded"
+                message=msg,
+                steps_verified=verified,
             )
 
         # -------------------------------------------------------------------
@@ -1135,8 +1282,12 @@ class AnimaRuntime:
         )
         self.db.save(new_skill)
 
+        # A3 essential-state verification of the cold trajectory before it is trusted.
+        post_nodes = self.pruner.prune(device.dump_xml(), screen_size=screen_size)
+        cold_verified = 1 if EssentialStateVerifier.verify_progress(nodes, post_nodes, target_node) else 0
+
         target_desc = str(target_node.text or target_node.content_desc or target_node.resource_id or "element")
-        self.ptg.record_transition(nodes, nodes, action, target_desc, time.time() - start_time, 1)
+        self.ptg.record_transition(nodes, post_nodes, action, target_desc, time.time() - start_time, 1)
 
         return ExecutionResult(
             mode="COLD_COMPILED",
@@ -1144,7 +1295,8 @@ class AnimaRuntime:
             steps_executed=1,
             llm_calls=1,
             latency_seconds=time.time() - start_time,
-            message="Cold-start planned and compiled into SQLite skill"
+            message="Cold-start planned and compiled into SQLite skill",
+            steps_verified=cold_verified,
         )
 
 # ---------------------------------------------------------------------------
@@ -1256,11 +1408,15 @@ class DemoDevice(Device):
     def dump_screenshot(self) -> bytes:
         return b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR"
 
+    # Switch hit-box for each layout; the drifted build moved it down-left.
+    SWITCH_BOUNDS = {False: (850, 220, 1000, 340), True: (700, 500, 860, 620)}
+
     def tap(self, x: int, y: int) -> None:
         if self.has_popup and 200 <= x <= 880 and 900 <= y <= 1050:
             self.has_popup = False
             return
-        if 850 <= x <= 1000 and 220 <= y <= 340:
+        x1, y1, x2, y2 = self.SWITCH_BOUNDS[self.drift]
+        if x1 <= x <= x2 and y1 <= y <= y2:
             self.wifi_checked = not self.wifi_checked
 
     def input_text(self, text: str) -> None:

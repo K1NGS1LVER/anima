@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Anima</string>
+
+    <!--
+        Shown in Settings > Accessibility when the user decides whether to trust
+        this service. Must be honest about what it reads and does, and mention
+        the kill-switch, since this is the actual consent surface.
+    -->
+    <string name="accessibility_service_description">Anima reads the on-screen layout (text, content descriptions and control positions) of the app you\'re using so it can tap, swipe and type on your behalf to complete tasks you asked for. It does not read passwords entered into secure password fields, and it pauses and hands control back to you the instant a biometric or lock-screen prompt appears. You are always in control: tap \"Take Control\" on the floating Anima capsule, or turn this service off here at any time, to stop automation immediately.</string>
+
+    <!-- Header -->
+    <string name="wordmark">Anima</string>
+    <string name="tagline">On-device autonomous GUI agent — 0 LLM calls on repeat tasks</string>
+
+    <!-- Permission gate -->
+    <string name="section_permissions">Permissions</string>
+    <string name="label_accessibility_service">Accessibility Service</string>
+    <string name="label_accessibility_service_hint">Lets Anima read the screen and act on it</string>
+    <string name="label_overlay_permission">Display Over Other Apps</string>
+    <string name="label_overlay_permission_hint">Shows the live agent HUD and kill-switch</string>
+    <string name="status_enabled">ENABLED</string>
+    <string name="status_disabled">DISABLED</string>
+    <string name="btn_enable">ENABLE</string>
+
+    <!-- Run a goal -->
+    <string name="section_run_goal">Run a Goal</string>
+    <string name="default_goal">toggle wifi</string>
+    <string name="goal_input_hint">Goal</string>
+    <string name="goal_disabled_hint">Enable the Accessibility Service above to run goals on-device.</string>
+    <string name="btn_run">RUN</string>
+    <string name="btn_running">RUNNING…</string>
+
+    <!-- 3-act demo -->
+    <string name="section_demo">3-Act Demo</string>
+    <string name="section_demo_subtitle">Cold compile → warm replay → self-healing chaos, scored live</string>
+    <string name="btn_run_demo">RUN 3-ACT DEMO</string>
+    <string name="btn_demo_running">DEMO RUNNING…</string>
+    <string name="label_mode">MODE</string>
+    <string name="label_latency">LATENCY</string>
+    <string name="label_llm_calls">LLM CALLS</string>
+    <string name="label_cost">COST</string>
+    <string name="demo_summary_format">Anima total: %1$s • %2$s — vs. stateless baseline: ~180s • ~$0.90 per task</string>
+    <string name="demo_empty_state">Results will appear here as each act completes.</string>
+
+    <!-- Toasts / transient messages -->
+    <string name="msg_accessibility_service_disabled">Accessibility Service is off — enable it above before running a goal.</string>
+    <string name="msg_goal_empty">Type a goal first.</string>
+    <string name="msg_routing_to">Opening %1$s…</string>
+    <string name="msg_open_target_app">Nothing to act on — Anima never drives its own screen. Open the app you want it to operate, then run the goal.</string>
+    <string name="msg_notifications_denied">Notifications are off — the live agent HUD status will be silent.</string>
+</resources>

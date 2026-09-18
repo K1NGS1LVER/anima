@@ -8,6 +8,8 @@ import unittest
 from anima import (
     ADBDevice,
     AnimaRuntime,
+    Matcher,
+    BiometricGuard,
     EssentialStateVerifier,
     HeuristicPlanner,
     LocalLiteRTPlanner,
@@ -150,6 +152,128 @@ class TestAnima(unittest.TestCase):
 
         progress = EssentialStateVerifier.verify_progress(initial_nodes, post_nodes, wifi_node)
         self.assertTrue(progress)
+
+    def test_essential_state_verification_is_wired_into_runtime(self):
+        """The A3 milestone check must run inside the replay loop, not merely exist.
+
+        Regression guard: verify_progress() was dead code for three phases -- the
+        runtime executed every step open-loop and reported success without ever
+        checking that an action changed anything on screen.
+        """
+        class TogglingDevice(MockDevice):
+            """Flips the Wi-Fi switch state on tap, like a real Settings screen."""
+            def tap(self, x, y):
+                super().tap(x, y)
+                self.xml = self.xml.replace('checked="false"', 'checked="true"')
+
+        class InertDevice(MockDevice):
+            """Accepts taps but never changes state -- a silently failing UI."""
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = os.path.join(tmpdir, "verify_skills.db")
+            runtime = AnimaRuntime(db_path=db_path, planner=HeuristicPlanner())
+
+            runtime.run("toggle wifi", TogglingDevice(SAMPLE_XML))  # cold compile
+            warm = runtime.run("toggle wifi", TogglingDevice(SAMPLE_XML))
+            self.assertEqual(warm.mode, "WARM_REPLAY")
+            self.assertEqual(warm.llm_calls, 0)
+            self.assertEqual(warm.steps_verified, warm.steps_executed)
+
+            # Same skill against a UI that never responds: the run still completes
+            # (an advisory check must never abort a live demo) but reports zero
+            # verified milestones and says so in the message.
+            inert = runtime.run("toggle wifi", InertDevice(SAMPLE_XML))
+            self.assertTrue(inert.success)
+            self.assertEqual(inert.steps_verified, 0)
+            self.assertIn("0/1 steps verified", inert.message)
+
+    def test_biometric_markers_are_case_normalized(self):
+        """Every marker must be reachable against the lower-cased dump."""
+        for marker in BiometricGuard.MARKERS:
+            self.assertEqual(marker, marker.lower(), f"marker {marker!r} can never match")
+            self.assertTrue(BiometricGuard.detect(f"<node text='{marker.upper()}' />"))
+
+    def test_planner_matches_real_world_label_typography(self):
+        """Goal words must survive punctuation in real Android labels.
+
+        Regression from a physical Redmi Note 11: MIUI's Wi-Fi screen labels the
+        toggle "Wi-Fi", and `"wifi" in "wi-fi"` is False, so the planner found
+        nothing and the task failed on-device. The mock XMLs hid this because
+        their resource-ids happen to contain the bare word ("switch_wifi").
+        """
+        xml = """<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
+<hierarchy rotation="0">
+  <node index="0" class="android.widget.FrameLayout" bounds="[0,0][1080,2400]">
+    <node index="0" class="android.widget.LinearLayout" resource-id="android:id/row" clickable="true" bounds="[0,200][1080,400]">
+      <node index="0" class="android.widget.TextView" resource-id="android:id/title" text="Wi-Fi" bounds="[72,260][600,340]" />
+    </node>
+    <node index="1" class="android.widget.TextView" text="Do not disturb" bounds="[72,500][600,580]" />
+  </node>
+</hierarchy>
+"""
+        nodes = UIFormer().prune(xml)
+        planner = HeuristicPlanner()
+
+        decision = planner.plan_step("toggle wifi", "", nodes)
+        self.assertIsNotNone(decision, "punctuated label 'Wi-Fi' must match goal word 'wifi'")
+
+        # And the tap must land on the clickable row, not the inert label inside it.
+        _action, target, _val = decision
+        self.assertTrue(target.clickable)
+        self.assertEqual(target.resource_id, "android:id/row")
+
+    def test_planner_redirects_label_taps_to_the_clickable_row(self):
+        """A matched label that is not clickable resolves to its smallest clickable container."""
+        xml = """<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
+<hierarchy rotation="0">
+  <node index="0" class="android.widget.FrameLayout" clickable="true" bounds="[0,0][1080,2400]">
+    <node index="0" class="android.widget.LinearLayout" resource-id="android:id/row" clickable="true" bounds="[0,200][1080,400]">
+      <node index="0" class="android.widget.TextView" text="Bluetooth" bounds="[72,260][600,340]" />
+    </node>
+  </node>
+</hierarchy>
+"""
+        nodes = UIFormer().prune(xml)
+        _action, target, _val = HeuristicPlanner().plan_step("open bluetooth", "", nodes)
+
+        # The whole-screen FrameLayout also contains the label; the tighter row wins.
+        self.assertEqual(target.resource_id, "android:id/row")
+
+    def test_locator_does_not_match_a_lookalike_row_on_another_screen(self):
+        """A skill must not fire on a same-shaped row in a different app.
+
+        Regression from a physical device: the compiled "toggle wifi" skill
+        replayed on the Bluetooth settings screen and turned Bluetooth off,
+        reporting success. MIUI's toggle row has no resource-id, no text and no
+        content-desc of its own, so the locator held only a class and a
+        position -- and active-weight renormalization rescaled that to a
+        perfect 1.0 against any LinearLayout in the same place.
+        """
+        wifi_screen = """<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
+<hierarchy rotation="0">
+  <node index="0" class="android.widget.FrameLayout" bounds="[0,0][1080,2400]">
+    <node index="0" class="android.widget.LinearLayout" clickable="true" bounds="[0,421][1080,575]">
+      <node index="0" class="android.widget.TextView" resource-id="android:id/title" text="Wi-Fi" bounds="[76,466][183,529]" />
+      <node index="1" class="android.widget.CheckBox" resource-id="android:id/checkbox" checkable="true" checked="true" bounds="[870,454][1004,541]" />
+    </node>
+  </node>
+</hierarchy>
+"""
+        # Same OEM, same layout, same coordinates -- a different setting.
+        bluetooth_screen = wifi_screen.replace("Wi-Fi", "Bluetooth")
+
+        pruner = UIFormer()
+        wifi_row = [n for n in pruner.prune(wifi_screen) if n.clickable][0]
+        bt_row = [n for n in pruner.prune(bluetooth_screen) if n.clickable][0]
+
+        # The row inherits the label sitting inside it, so it is identifiable.
+        self.assertEqual(wifi_row.text, "Wi-Fi")
+        self.assertEqual(bt_row.text, "Bluetooth")
+
+        locator = Locator.from_node(wifi_row)
+        self.assertEqual(Matcher.score(locator, wifi_row), 1.0)
+        self.assertEqual(Matcher.score(locator, bt_row), 0.0)
+        self.assertIsNone(Matcher.find_best(locator, [bt_row]))
 
     def test_export_import_skills(self):
         """Verifies skill library JSON export and import."""
