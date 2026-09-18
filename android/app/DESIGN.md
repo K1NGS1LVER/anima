@@ -27,6 +27,8 @@ Anima is an instrument panel cut from jet-black glass: quiet at rest, with pearl
 
 Use native Material press, focus, disabled, and permission states. Gradients are static material, never animated decoration. Keep text readable over every state.
 
+The single authored motion moment is the launch burst: **ANIMA** assembles from the jet-black field, then opens into a pearlescent radial burst that hands off to onboarding. It is a one-time continuity cue—not a repeating loading effect—and respects Android's system animation scale.
+
 
 ## Where this applies next
 

@@ -22,8 +22,13 @@ class MainActivity : AppCompatActivity() {
     private val scanner = FakeScanController()
     private var selected: ResolveInfo? = null
 
-    override fun onCreate(savedInstanceState: Bundle?) { super.onCreate(savedInstanceState); setContentView(R.layout.activity_main); container = findViewById(R.id.screen_container); onboarding() }
+    override fun onCreate(savedInstanceState: Bundle?) { super.onCreate(savedInstanceState); setContentView(R.layout.activity_main); container = findViewById(R.id.screen_container); launchIntro() }
     override fun onResume() { super.onResume(); if (::container.isInitialized) refreshPermissionState() }
+
+    private fun launchIntro() {
+        val intro = AnimaBurstView(this) { onboarding() }
+        container.removeAllViews(); container.addView(intro, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)); intro.start()
+    }
 
     private fun onboarding() = screen {
         add(header("Know an app before you automate it", "ANIMA · APP CARTOGRAPHER")); add(copy("Choose an Android app and Anima will explore its safe, visible paths to build a Knowledge Pack with its screens, journeys, UI elements, and design system."), lp(12))
