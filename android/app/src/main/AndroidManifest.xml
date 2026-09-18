@@ -17,7 +17,7 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Anima">
 
-        <!-- Launcher Activity: judge-facing onboarding, permission gate, goal runner, 3-act demo -->
+        <!-- Launcher Activity: onboarding, app selection, scan control and pack viewer. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -27,16 +27,6 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-
-        <!-- External Automation Receiver: Tasker & MacroDroid Intent API -->
-        <receiver
-            android:name=".TaskerReceiver"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="io.agents.anima.RUN_TASK" />
-                <category android:name="android.intent.category.DEFAULT" />
-            </intent-filter>
-        </receiver>
 
     </application>
 
