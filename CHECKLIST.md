@@ -109,52 +109,67 @@ Run `source android/env.sh` before any Gradle or ADB command below.
 
 ---
 
-# Day 0 — joint, blocking
+# Day 0 — joint, blocking ✅ (except fixtures)
 
-- [ ] Gradle split into `:core :capture :explore :understand :design :store :app` — `./gradlew projects` lists all seven
-- [ ] `./gradlew build` green after the split
-- [ ] **Pack schema v1 frozen** and committed — [KNOWLEDGE_PACK.md](KNOWLEDGE_PACK.md)
-- [ ] Stable-ID spec agreed (SHA-256 structural hash, dynamic content excluded)
-- [ ] Golden fixture packs in `fixtures/packs/` — Jiya and Neethu unblocked
-- [ ] Module interfaces agreed (signatures only)
-- [ ] minSdk decision recorded (26 -> 30 for `takeScreenshot()`)
-- [ ] `dev` branch created, `main` protected, five feature branches pushed
-- [ ] CI runs per-module tests
+- [x] Gradle split into `:core :capture :explore :understand :design :store :app` — `./gradlew projects` lists all seven
+- [x] `./gradlew build` green after the split
+- [x] **Pack schema v1 frozen** and committed — `core/src/main/kotlin/io/agents/anima/core/Pack.kt`, matching [KNOWLEDGE_PACK.md](KNOWLEDGE_PACK.md)
+- [x] Stable-ID spec agreed (SHA-256 structural hash, dynamic content excluded) — [KNOWLEDGE_PACK.md](KNOWLEDGE_PACK.md); implementation is Jacob's
+- [ ] Golden fixture packs in `fixtures/packs/` — **Jacob, still outstanding. Jiya and Neethu are blocked on this and nothing else.**
+- [x] Module interfaces agreed (signatures only) — `core/src/main/kotlin/io/agents/anima/core/Contracts.kt`
+- [x] minSdk decision recorded (26 -> 30 for `takeScreenshot()`) — `android/build.gradle.kts`, one place, not seven
+- [x] `dev` branch created and five feature branches pushed off it — `git branch -a`
+- [x] CI runs per-module tests — `.github/workflows/ci.yml` runs `./gradlew test`, not `:app:testDebugUnitTest`, which would now say nothing about the engine
+- [x] `:core` kept free of `android.*` — enforced by `NoAndroidImportsTest`, not by convention
+
+> `main` protection is a repo setting, not a commit. **Samuel: set it in GitHub before anyone opens a PR.**
+
+> Branches were created off `dev` rather than left to each person, because branching off `main` by mistake means missing the module split entirely and hitting a merge conflict across every build file.
 
 # Samuel — Exploration engine · `feat/explorer`
 
-## Capture gaps
+## Capture gaps ✅
 
-- [ ] Screenshot capture via `AccessibilityService.takeScreenshot()` — none exists today
-- [ ] `isScrollable` stored on `AccessibilityNode` (read today, never kept)
-- [ ] `scroll()` added to `AgentDevice` (`dispatchSwipe` exists on the service, nothing calls it)
-- [ ] Multi-window enumeration via `getWindows()` (`flagRetrieveInteractiveWindows` already set)
-- [ ] Screenshot and node capture on the same frame, so design extraction and the tree agree
+- [x] Screenshot capture via `AccessibilityService.takeScreenshot()` — `AnimaAccessibilityService.takeScreenshotSync()`; WebP downscale to the 60 KB / 720 px budget in `capture/Screenshotter.kt`
+- [x] `isScrollable` stored on `AccessibilityNode` and `PrunedNode` (read since the first version, never kept)
+- [x] Scrollable containers survive `UIFormer` pruning — without this a list screen looks finished at the fold
+- [x] `scroll()` in the device contract — `ExplorationDevice.scroll()`, swiping the middle 60% to miss the back gesture and the notification shade
+- [x] Multi-window enumeration via `getWindows()` — `captureAllWindowNodes()`, ordered by layer then window id so two scans agree
+- [x] Screenshot and node capture in one `observe()` call, so design extraction and the tree describe the same screen
 
 ## Exploration loop
 
-- [ ] Frontier queue over unexplored elements
-- [ ] Action vocabulary: tap / scroll / back / drawer / fill / mode-toggle
-- [ ] Novelty scoring prefers unseen screens
-- [ ] Stop conditions: frontier exhausted, step budget, wall-clock budget, novelty decay
-- [ ] Coverage stats emitted into `scan.coverage`
-- [ ] **Seeded, ordered traversal** — repeat scans visit screens in the same order
+- [x] Frontier queue over unexplored elements — `explore/Frontier.kt`
+- [x] Action vocabulary: tap / scroll / back / fill / relaunch — `Explorer.perform()`
+- [ ] Drawer-opening gesture (edge swipe) — not yet; drawers are reached today only when a hamburger control is exposed as a node
+- [x] Mode toggle — `setUiMode()`, honest about needing `WRITE_SECURE_SETTINGS`; returns false rather than faking a light/dark diff
+- [x] Novelty scoring prefers navigation over toggles and text — `explore/ExplorationPolicy.kt`
+- [x] Stop conditions: frontier exhausted, step budget, screen budget, wall-clock, novelty decay — each with its own `StopReason`
+- [x] Coverage stats emitted — `ScanOutcome` carries screens, elements, steps, frontier remaining and stop reason
+- [ ] Coverage written into `scan.coverage` of the pack — needs Jacob's assembler
+- [x] **Ordered, reproducible traversal** — `ExplorerTest.twoScansOfTheSameAppWalkItIdentically`
 
 ## Safety envelope
 
-- [ ] Destructive-control deny-list enforced (Delete, Pay, Buy, Send, Transfer, Confirm, Log out)
-- [ ] Never leaves the target package; detects and returns
-- [ ] Recovery ladder: Back -> Home -> relaunch
-- [ ] Hard budgets on steps, depth, wall-clock
-- [ ] Kill switch verified live during a crawl
-- [ ] Biometric guard halts the crawl rather than attempting the prompt
+- [x] Destructive-control deny-list enforced — `explore/SafetyEnvelope.kt`; candidates are never queued, so no later bug in the loop can reach one
+- [x] Forward-motion labels deliberately allowed (Continue, Next, Submit, Sign in, Verify) — the crawler has to get through login and OTP gates
+- [x] Never leaves the target package; detects and returns — `SafetyEnvelope.locate()` + `Explorer.recover()`
+- [x] Recovery ladder: Back -> Home -> relaunch, ordered by what each costs the scan
+- [x] Hard budgets on steps, depth, screens and wall-clock — `explore/ScanBudget.kt`
+- [x] Biometric guard records the screen as a boundary and does not drive it — `ExplorerTest.anAuthenticationScreenIsRecordedButNotDriven`
+- [ ] Kill switch verified live during a crawl on hardware — wired (`isAborted`) and unit-tested; **needs the phone**
 
-## Done when
+## Done when — all four need hardware
 
 - [ ] Scans a real app with no human input
 - [ ] >=30 screens discovered on the fintech target
 - [ ] Zero destructive controls tapped across 10 consecutive scans
-- [ ] Two consecutive scans visit screens in the same order
+- [ ] Two consecutive scans visit screens in the same order **on a device** (proved against a fake app; the device adds timing, animation and OEM behaviour)
+
+> No box above is ticked on hardware evidence. `adb devices` was empty for this
+> session, so everything marked done is verified by JVM tests and a green build,
+> and everything that genuinely needs the Redmi is still open. That distinction
+> is the whole point of this file.
 
 # Daniel — Understanding · `feat/understanding`
 

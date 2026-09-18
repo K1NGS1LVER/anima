@@ -141,15 +141,21 @@ object UIFormer {
             val cls = el.getAttribute("class") ?: ""
             val clickable = el.getAttribute("clickable") == "true"
             val checked = el.getAttribute("checked") == "true"
+            val scrollable = el.getAttribute("scrollable") == "true"
             val text = el.getAttribute("text")?.trim()?.takeIf { it.isNotEmpty() }
             val desc = el.getAttribute("content-desc")?.trim()?.takeIf { it.isNotEmpty() }
             val resId = el.getAttribute("resource-id")?.trim()?.takeIf { it.isNotEmpty() }
 
             val hasSemantics = text != null || desc != null || clickable ||
-                el.getAttribute("checkable") == "true"
+                el.getAttribute("checkable") == "true" || scrollable
             val isContainer = CONTAINERS.contains(cls)
 
-            if (hasSemantics && (!isContainer || clickable)) {
+            // A scrollable container survives pruning even though it is a
+            // container and carries no label. An explorer that cannot see the
+            // scroll container cannot tell a screen it has finished reading
+            // from one with four more pages below the fold -- and half of a
+            // list screen's elements are usually below it.
+            if (hasSemantics && (!isContainer || clickable || scrollable)) {
                 val (bounds, center) = parseBounds(el.getAttribute("bounds"))
                 if (bounds[2] > bounds[0] && bounds[3] > bounds[1]) {
                     val (relBounds, relCenter) = normalize(bounds, center, sw, sh)
@@ -162,6 +168,8 @@ object UIFormer {
                             contentDesc = desc,
                             clickable = clickable,
                             checked = checked,
+                            scrollable = scrollable,
+                            editable = cls.endsWith("EditText"),
                             bounds = bounds,
                             center = center,
                             relBounds = relBounds,

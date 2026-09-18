@@ -47,7 +47,7 @@ Gradle modules, one owner each. Everything depends on `:core` and nothing else h
 :app         onboarding, scan control, viewer, Play readiness
 ```
 
-The repo is single-module today. Splitting it is what makes five people working simultaneously safe, and it is mechanical — the `engine` package already avoids `android.*` imports.
+**Landed.** `:core` is a plain Kotlin/JVM library rather than an Android one, so the whole engine still unit-tests on a laptop with no emulator — a `NoAndroidImportsTest` enforces that rather than leaving it to good intentions. `:capture` owns the accessibility service and overlay declarations and the consent string, so `:app`'s manifest declares product surfaces only. The SDK levels are declared once in the root build file and read by all seven modules.
 
 ## The three properties that actually get judged
 
@@ -67,9 +67,13 @@ The repo is single-module today. Splitting it is what makes five people working 
 
 Full briefs in [ASSIGNMENTS.md](ASSIGNMENTS.md).
 
-## Day 0 — the only joint session
+## Day 0 — done, except the fixtures
 
-Split the modules, **freeze the pack schema**, ship golden fixtures, agree interfaces, create branches. After this nobody blocks anybody. Also decide: **minSdk 26 → 30**, needed for `AccessibilityService.takeScreenshot()`.
+Modules split, **pack schema frozen in code** (`core/Pack.kt`), module interfaces agreed (`core/Contracts.kt`), minSdk raised to 30 for `AccessibilityService.takeScreenshot()`, and all five feature branches pushed off `dev`.
+
+One thing outstanding and it blocks two people: **Jacob's golden fixture packs in `fixtures/packs/`**. Jiya and Neethu are waiting on nothing else.
+
+Branch protection on `main` is a GitHub repo setting rather than a commit, so it is Samuel's to click before the first PR.
 
 ## Decisions
 

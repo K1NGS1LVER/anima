@@ -20,6 +20,17 @@ data class PrunedNode(
     val contentDesc: String? = null,
     val clickable: Boolean = false,
     val checked: Boolean = false,
+    /**
+     * Whether this node scrolls. Read during capture since the very first
+     * version and then thrown away, which meant the crawler could not tell a
+     * screen it had finished reading from one that had four more pages below
+     * the fold. Not serialized into the Agent-DOM: [UIFormer.toCompactJson] is
+     * a cross-runtime contract with anima.py and adding a key there would break
+     * the Python importer for a field the planner never reads.
+     */
+    val scrollable: Boolean = false,
+    /** Whether text can be typed into this node. Drives form filling. */
+    val editable: Boolean = false,
     val bounds: List<Int> = listOf(0, 0, 0, 0),
     val center: List<Int> = listOf(0, 0),
     val relBounds: List<Double> = listOf(0.0, 0.0, 0.0, 0.0),
