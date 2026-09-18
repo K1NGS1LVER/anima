@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!--
+        The permissions and components :explore actually owns, same pattern as
+        :capture's manifest: the module that runs the thing declares the thing,
+        rather than pushing every service declaration up into :app.
+
+        Class names are fully qualified on purpose. A leading dot in a library
+        manifest resolves against the library's own namespace
+        (io.agents.anima.explore), not the application id.
+    -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+
+    <application>
+
+        <!-- Runs one autonomous exploration scan to completion, in the foreground. -->
+        <service
+            android:name="io.agents.anima.explore.ScanService"
+            android:foregroundServiceType="specialUse"
+            android:exported="false">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="autonomous exploration of a user-selected app, controlled by the device owner" />
+        </service>
+
+    </application>
+
+</manifest>

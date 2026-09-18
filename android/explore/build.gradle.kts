@@ -32,6 +32,13 @@ android {
 dependencies {
     api(project(":core"))
     implementation(project(":capture"))
+    // ScanController exposes a StateFlow for the scan-control screen (S3).
+    // `-core`, not `-android` like :capture/:app use: :explore stays
+    // platform-neutral, and StateFlow/MutableStateFlow don't need
+    // Dispatchers.Main or any other Android-only piece, so FakeScanController
+    // runs its timer on Dispatchers.Default and stays usable from a plain JVM
+    // unit test.
+    api("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.1")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20240303")
 }

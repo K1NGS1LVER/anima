@@ -152,4 +152,48 @@ class HybridUnderstanderTest {
         assertEquals("formal", t.register)
         assertTrue(t.summary.isNotBlank())
     }
+
+    /** A model that violates its contract by throwing instead of returning null. */
+    private class ThrowingModel(
+        override val name: String = "thrower",
+        override val model: String? = null,
+    ) : UnderstandingModel {
+        override fun completeText(system: String, user: String, maxOutputTokens: Int): String? =
+            throw RuntimeException("simulated model crash")
+    }
+
+    @Test
+    fun `a throwing backend degrades to the next model, never ends the scan`() {
+        val h = hybrid(listOf(ThrowingModel(), FakeModel()))
+        val p = h.describe(obs, "scr_x", ctx)
+        assertEquals("fake", h.lastBackend)
+        assertEquals("Sign in", p.name)
+    }
+
+    @Test
+    fun `a single throwing backend degrades all the way to heuristic`() {
+        val h = hybrid(listOf(ThrowingModel()))
+        val p = h.describe(obs, "scr_x", ctx)
+        assertEquals("heuristic", h.lastBackend)
+        assertTrue(p.purpose.isNotBlank())
+    }
+
+    @Test
+    fun `a journey through the middle of the app is named from its own path, not the app head`() {
+        // Full app: Home, Amount, Review. The journey starts at Amount (mid-app:
+        // it was reached by a previous screen, not by scanning from the top).
+        val screens = listOf(
+            Screen("scr_home", "Home", "Shows the overview.", ScreenKind.LIST, ScreenSignature("h", emptyList(), null), emptyList(), null, listOf(UiMode.LIGHT)),
+            Screen("scr_amt", "Amount", "Collects the amount.", ScreenKind.FORM, ScreenSignature("h", emptyList(), null), emptyList(), null, listOf(UiMode.LIGHT)),
+            Screen("scr_rev", "Review", "Confirms the transfer.", ScreenKind.FORM, ScreenSignature("h", emptyList(), null), emptyList(), null, listOf(UiMode.LIGHT)),
+        )
+        val path = listOf(
+            JourneyStep("scr_amt", "el_1", ElementAction.INPUT, "{amount}"),
+            JourneyStep("scr_amt", "el_2", ElementAction.TAP),
+            JourneyStep("scr_rev", "el_3", ElementAction.TAP),
+        )
+        val j = hybrid(emptyList()).describeJourney(path, screens, ctx)
+        assertEquals("Amount → Review", j.name)
+        assertEquals("Confirms the transfer.", j.goal)
+    }
 }

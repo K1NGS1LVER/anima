@@ -2,8 +2,9 @@
 <resources>
     <string name="app_name">Anima</string>
 
-    <!-- Header -->
+    <!-- Legacy strings remain only while shared capture-service resources migrate. -->
     <string name="wordmark">Anima</string>
+    <string name="brand_descriptor">AUTONOMOUS APP CARTOGRAPHER</string>
     <string name="tagline">On-device autonomous GUI agent — 0 LLM calls on repeat tasks</string>
 
     <!-- Permission gate -->
@@ -24,22 +25,4 @@
     <string name="btn_run">RUN</string>
     <string name="btn_running">RUNNING…</string>
 
-    <!-- 3-act demo -->
-    <string name="section_demo">3-Act Demo</string>
-    <string name="section_demo_subtitle">Cold compile → warm replay → self-healing chaos, scored live</string>
-    <string name="btn_run_demo">RUN 3-ACT DEMO</string>
-    <string name="btn_demo_running">DEMO RUNNING…</string>
-    <string name="label_mode">MODE</string>
-    <string name="label_latency">LATENCY</string>
-    <string name="label_llm_calls">LLM CALLS</string>
-    <string name="label_cost">COST</string>
-    <string name="demo_summary_format">Anima total: %1$s • %2$s — vs. stateless baseline: ~180s • ~$0.90 per task</string>
-    <string name="demo_empty_state">Results will appear here as each act completes.</string>
-
-    <!-- Toasts / transient messages -->
-    <string name="msg_accessibility_service_disabled">Accessibility Service is off — enable it above before running a goal.</string>
-    <string name="msg_goal_empty">Type a goal first.</string>
-    <string name="msg_routing_to">Opening %1$s…</string>
-    <string name="msg_open_target_app">Nothing to act on — Anima never drives its own screen. Open the app you want it to operate, then run the goal.</string>
-    <string name="msg_notifications_denied">Notifications are off — the live agent HUD status will be silent.</string>
 </resources>
