@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!--
+        Shown in Settings > Accessibility when the user decides whether to trust
+        this service. Must be honest about what it reads and does, and mention
+        the kill-switch, since this is the actual consent surface.
+    -->
+    <string name="accessibility_service_description">Anima reads the on-screen layout (text, content descriptions and control positions) of the app you\'re exploring so it can tap, swipe and type on your behalf. It does not read passwords entered into secure password fields, and it pauses and hands control back to you the instant a biometric or lock-screen prompt appears. You are always in control: tap \"Take Control\" on the floating Anima capsule, or turn this service off here at any time, to stop the scan immediately.</string>
+
+</resources>

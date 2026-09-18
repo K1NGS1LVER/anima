@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!--
+        The permissions and components this module actually owns. They live here
+        rather than in :app so that the execution plane is self-contained: the
+        app manifest declares product surfaces, not the agent's machinery.
+
+        Class names are fully qualified on purpose. A leading dot in a library
+        manifest resolves against the library's own namespace
+        (io.agents.anima.capture), not the application id.
+    -->
+    <uses-permission android:name="android.permission.BIND_ACCESSIBILITY_SERVICE" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+
+    <application>
+
+        <!-- Accessibility Service: UI tree inspection, screenshots, gesture dispatch -->
+        <service
+            android:name="io.agents.anima.AnimaAccessibilityService"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config" />
+        </service>
+
+        <!-- Floating HUD overlay: live scan status and the always-live kill switch -->
+        <service
+            android:name="io.agents.anima.FloatingOverlayService"
+            android:foregroundServiceType="specialUse"
+            android:exported="false">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="on-device autonomous accessibility automation agent controlled by the device owner" />
+        </service>
+
+    </application>
+
+</manifest>

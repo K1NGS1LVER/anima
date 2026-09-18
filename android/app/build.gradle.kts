@@ -5,12 +5,12 @@ plugins {
 
 android {
     namespace = "io.agents.anima"
-    compileSdk = 34
+    compileSdk = rootProject.extra["animaCompileSdk"] as Int
 
     defaultConfig {
         applicationId = "io.agents.anima"
-        minSdk = 26
-        targetSdk = 34
+        minSdk = rootProject.extra["animaMinSdk"] as Int
+        targetSdk = rootProject.extra["animaTargetSdk"] as Int
         versionCode = 1
         versionName = "1.0.0"
 
@@ -50,6 +50,13 @@ android {
 }
 
 dependencies {
+    implementation(project(":core"))
+    implementation(project(":capture"))
+    implementation(project(":explore"))
+    implementation(project(":understand"))
+    implementation(project(":design"))
+    implementation(project(":store"))
+
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("com.google.android.material:material:1.12.0")

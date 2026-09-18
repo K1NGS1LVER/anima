@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [ main, master, dev-sam ]
+    branches: [ main, master, dev, 'feat/**' ]
   pull_request:
     branches: [ main, master ]
 
@@ -62,9 +62,11 @@ jobs:
     - name: Set up Gradle
       uses: gradle/actions/setup-gradle@v4
 
-    - name: Run JVM unit tests (engine, hermetic -- no device)
+    # `test` across every module, not just :app -- the engine lives in :core now
+    # and a green :app suite would say nothing about it.
+    - name: Run JVM unit tests (all modules, hermetic -- no device)
       working-directory: android
-      run: ./gradlew :app:testDebugUnitTest
+      run: ./gradlew test
 
     - name: Build debug APK
       working-directory: android
